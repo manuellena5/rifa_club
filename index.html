@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Rifa del Club</title>
+<style>
+:root{
+  --bg:#0f172a; --card:#1e293b; --card2:#273449; --line:#334155;
+  --txt:#e2e8f0; --muted:#94a3b8;
+  --ok:#22c55e; --otro:#3b82f6; --pend:#f59e0b; --bad:#ef4444; --acc:#38bdf8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:96px}
+header{position:sticky;top:0;z-index:20;background:#0f172af2;backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 12px}
+.hrow{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.title{font-weight:700;font-size:16px}
+.sub{font-size:12px;color:var(--muted)}
+.chip{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--card);white-space:nowrap;cursor:pointer}
+.chip.on{color:var(--ok);border-color:#166534}
+.chip.off{color:var(--pend);border-color:#78350f}
+.chip.q{color:var(--pend);border-color:#78350f}
+.chip.bad{color:#fecaca;border-color:#7f1d1d}
+.tabs{display:flex;gap:5px;margin-top:10px;overflow-x:auto}
+.tab{flex:1;text-align:center;padding:8px 6px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:13px;cursor:pointer;white-space:nowrap}
+.tab.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:700}
+main{padding:12px}
+.panel{display:none}.panel.sel{display:block}
+.bar{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+input,select,button,textarea{font:inherit;color:var(--txt)}
+input,select,textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+input:disabled{opacity:.6}
+.f{padding:7px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;cursor:pointer;white-space:nowrap}
+.f.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.n{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
+.n.mio{background:#14532d;border-color:var(--ok);color:#dcfce7}
+.n.otro{background:#1e3a8a;border-color:var(--otro);color:#dbeafe}
+.n.pend{border-style:dashed;border-color:var(--pend)}
+.n.pick{background:var(--acc);border-color:#e0f2fe;color:#06263a;box-shadow:0 0 0 2px #38bdf880}
+.n.gan{background:#713f12;border-color:#facc15;color:#fef9c3}
+.n:active{transform:scale(.94)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.big{font-size:26px;font-weight:800}
+.mut{color:var(--muted);font-size:12px}
+.btn{padding:12px;border-radius:10px;border:none;background:var(--acc);color:#06263a;font-weight:700;cursor:pointer;width:100%}
+.btn:disabled{opacity:.5}
+.btn.sec{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+.btn.danger{background:#7f1d1d;color:#fecaca}
+.btn.sm{width:auto;padding:9px 13px;font-size:13px}
+.modal{position:fixed;inset:0;background:#000000aa;display:none;align-items:flex-end;z-index:50}
+.modal.show{display:flex}
+.sheet{background:var(--card);width:100%;border-radius:16px 16px 0 0;padding:16px;max-height:92vh;overflow:auto;border-top:1px solid var(--line)}
+.sheet h3{margin:0 0 2px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 5px}
+.pagos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pg{padding:11px 4px;text-align:center;border-radius:10px;background:var(--card2);border:1px solid var(--line);font-size:13px;cursor:pointer}
+.pg.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:700}
+.fab{position:fixed;left:12px;right:12px;bottom:12px;z-index:30}
+.selbar{position:fixed;left:12px;right:12px;bottom:12px;z-index:31;background:var(--card);border:1px solid var(--acc);border-radius:14px;padding:12px;display:none;box-shadow:0 8px 30px #000a}
+.selbar.show{display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
+.warn{background:#78350f;border:1px solid var(--pend);color:#fde68a;border-radius:10px;padding:10px;font-size:13px;margin:10px 0}
+.info{background:#312e81;border:1px solid #6366f1;color:#e0e7ff;border-radius:10px;padding:10px;font-size:12px;margin-bottom:12px}
+.tag{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:7px;padding:2px 7px;font-size:12px;margin:2px 3px 2px 0}
+.bola{font-size:64px;font-weight:900;text-align:center;letter-spacing:2px;padding:22px 0;color:var(--acc);font-variant-numeric:tabular-nums}
+.pr{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.pr input{flex:1}
+#load{position:fixed;top:0;left:0;height:3px;background:var(--acc);width:0;transition:width .3s;z-index:99}
+</style>
+</head>
+<body>
+<div id="load"></div>
+
+<header>
+  <div class="hrow">
+    <div>
+      <div class="title" id="hTitulo">Rifa del Club</div>
+      <div class="sub">Vendedor: <b id="hVend">—</b> · <span id="hCount">0/300</span></div>
+    </div>
+    <div style="display:flex;gap:5px;align-items:center">
+      <span class="chip" id="hNet" onclick="actualizar()">—</span>
+      <span class="chip q" id="hQ" style="display:none">0</span>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab sel" data-t="nums">Números</div>
+    <div class="tab" data-t="mias">Mis ventas</div>
+    <div class="tab" data-t="res">Resumen</div>
+    <div class="tab" data-t="sort">Sorteo</div>
+    <div class="tab" data-t="cfg">Ajustes</div>
+  </div>
+</header>
+
+<main>
+  <div class="info" id="aviso"></div>
+
+  <!-- NÚMEROS -->
+  <section class="panel sel" id="p-nums">
+    <input id="buscar" placeholder="Buscar número o nombre…" style="margin-bottom:8px">
+    <div class="bar">
+      <div class="f sel" data-f="todos">Todos</div>
+      <div class="f" data-f="libres">Libres</div>
+      <div class="f" data-f="mios">Míos</div>
+      <div class="f" data-f="vend">Vendidos</div>
+      <div class="f" data-f="debe">Deben</div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#1e293b;border:1px solid #334155"></i>Libre</span>
+      <span><i class="dot" style="background:#14532d;border:1px solid #22c55e"></i>Mío</span>
+      <span><i class="dot" style="background:#1e3a8a;border:1px solid #3b82f6"></i>Otro vendedor</span>
+      <span><i class="dot" style="background:#78350f;border:1px dashed #f59e0b"></i>Falta subir</span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- MIS VENTAS -->
+  <section class="panel" id="p-mias">
+    <div class="card">
+      <div class="row">
+        <div><div class="mut">Números vendidos</div><div class="big" id="mCant">0</div></div>
+        <div style="text-align:right"><div class="mut">Cobrado</div><div class="big" id="mPlata">$0</div>
+        <div class="mut" id="mDebe"></div></div>
+      </div>
+    </div>
+    <div id="listaMias"></div>
+    <button class="btn sec" onclick="compartir()" style="margin-top:8px">Pasar mi lista por WhatsApp</button>
+  </section>
+
+  <!-- RESUMEN -->
+  <section class="panel" id="p-res">
+    <div class="card">
+      <div class="row">
+        <div><div class="mut">Vendidos</div><div class="big" id="rVend">0</div><div class="mut" id="rLibres"></div></div>
+        <div style="text-align:right"><div class="mut">Recaudado</div><div class="big" id="rPlata">$0</div><div class="mut" id="rDebe"></div></div>
+      </div>
+      <div style="height:8px;background:#0f172a;border-radius:99px;margin-top:12px;overflow:hidden"><div id="rBar" style="height:100%;width:0;background:var(--ok);transition:width .3s"></div></div>
+    </div>
+    <div class="card"><b>Por vendedor</b><table id="tVend"></table></div>
+    <div class="card"><b>Por forma de pago</b><table id="tPago"></table></div>
+    <div class="card"><b>Compras por cantidad</b><table id="tCant"></table></div>
+  </section>
+
+  <!-- SORTEO -->
+  <section class="panel" id="p-sort">
+    <div class="card">
+      <div class="mut">Participan solo los números vendidos</div>
+      <div class="big" id="sPart">0</div>
+      <div class="bola" id="bola">—</div>
+      <div id="sGanador" style="text-align:center;min-height:44px"></div>
+      <label>Premio a sortear</label>
+      <select id="selPremio"></select>
+      <button class="btn" onclick="sortear()" style="margin-top:12px" id="btnSortear">Sortear</button>
+      <div class="mut" style="margin-top:8px">Antes de sortear conviene apretar el ícono de estado (arriba a la derecha) para bajar las últimas ventas de todos.</div>
+    </div>
+    <div class="card">
+      <b>Ganadores</b>
+      <div id="listaGan" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section class="panel" id="p-cfg">
+    <div class="card">
+      <label>¿Quién sos?</label>
+      <select id="selVend" onchange="setVend(this.value)"></select>
+      <div class="mut" style="margin-top:6px">Se elige una sola vez y queda guardado en este celular.</div>
+    </div>
+
+    <div class="card">
+      <b>Conexión con la planilla</b>
+      <label>Dirección de la app (URL /exec)</label>
+      <input id="fUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <label>Clave</label>
+      <input id="fToken" placeholder="la que pusiste en la hoja Config">
+      <button class="btn" onclick="conectar()" style="margin-top:12px">Guardar y conectar</button>
+      <div id="estadoConn" class="mut" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="cardPrecios">
+      <b>Lista de precios</b>
+      <div class="mut" style="margin:6px 0 10px" id="notaPrecios"></div>
+      <div id="listaPrecios"></div>
+      <div id="boxExtra">
+        <button class="btn sec sm" onclick="addPrecio()">+ Agregar escalón</button>
+        <label>Cada número adicional</label>
+        <input id="pExtra" type="number" inputmode="numeric" onchange="setExtra(this.value)">
+      </div>
+      <div class="mut" id="ejemploPrecio" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card" id="cardLocal">
+      <label>Cantidad de números de la rifa</label>
+      <input id="total" type="number" inputmode="numeric" onchange="setTotal(this.value)">
+      <label>Premios (uno por línea)</label>
+      <textarea id="txtPremios" rows="4" onchange="setPremios(this.value)"></textarea>
+    </div>
+
+    <div class="card">
+      <b>Datos</b>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn sec sm" onclick="exportCSV()">Descargar CSV</button>
+        <button class="btn sec sm" onclick="actualizar()">Actualizar desde la planilla</button>
+        <button class="btn danger sm" onclick="reset()">Borrar este celular</button>
+      </div>
+      <div class="mut" style="margin-top:8px">"Borrar este celular" no toca la planilla: vuelve a bajar todo de cero.</div>
+    </div>
+
+    <div class="mut" style="text-align:center;padding:10px">versión <span id="ver">—</span></div>
+  </section>
+</main>
+
+<div class="fab" id="fab"><button class="btn" onclick="modoSeleccion()">+ Cargar venta</button></div>
+
+<div class="selbar" id="selbar">
+  <div class="row" style="margin-bottom:10px">
+    <div>
+      <div style="font-weight:700" id="sbNums">—</div>
+      <div class="mut">Tocá todos los que le vendés a la misma persona</div>
+    </div>
+    <div style="text-align:right"><div class="big" id="sbMonto">$0</div></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn sec" onclick="cancelarSeleccion()">Cancelar</button>
+    <button class="btn" onclick="continuarVenta()">Continuar</button>
+  </div>
+</div>
+
+<!-- MODAL VENTA -->
+<div class="modal" id="modal" onclick="if(event.target===this)cerrar()">
+  <div class="sheet">
+    <h3 id="mTit">Nueva venta</h3>
+    <div class="mut" id="mSub"></div>
+    <div id="mAlert"></div>
+    <div id="mNums" style="margin-top:10px"></div>
+    <label>Nombre y apellido</label>
+    <input id="fNom" autocomplete="name">
+    <label>Teléfono</label>
+    <input id="fTel" type="tel" inputmode="tel" placeholder="342 ...">
+    <label>Forma de pago</label>
+    <div class="pagos" id="fPago">
+      <div class="pg sel" data-p="Efectivo">Efectivo</div>
+      <div class="pg" data-p="Transferencia">Transfer.</div>
+      <div class="pg" data-p="Debe">Debe</div>
+    </div>
+    <label>Monto cobrado <span id="lblSug" class="mut"></span></label>
+    <input id="fMonto" type="number" inputmode="numeric">
+    <button class="btn" onclick="guardar()" style="margin-top:16px" id="btnGuardar">Guardar</button>
+    <button class="btn sec" onclick="cerrar()" style="margin-top:8px">Cancelar</button>
+    <button class="btn danger" id="btnAnular" onclick="anular()" style="margin-top:8px;display:none">Anular esta venta</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURACIÓN — pegá acá la URL y la clave para que los
+// vendedores no tengan que cargarlas a mano.
+// ============================================================
+const API_URL_FIJA = '';   // ej: 'https://script.google.com/macros/s/AKfy.../exec'
+const TOKEN_FIJO   = '';   // ej: 'mitre2026'
+
+// ============================================================
+const K='rifa_v5';
+const DEF={
+  vendedor:'', total:300, precios:[{c:1,p:10000},{c:2,p:15000},{c:3,p:22000}], extra:7000,
+  premios:['1º Premio','2º Premio','3º Premio'], nombreRifa:'Rifa del Club', abierta:true,
+  ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0
+};
+let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(K)||'{}'));
+if(API_URL_FIJA) S.url=API_URL_FIJA;
+if(TOKEN_FIJO)   S.token=TOKEN_FIJO;
+const save=()=>localStorage.setItem(K,JSON.stringify(S));
+
+const $=id=>document.getElementById(id);
+const plata=n=>'$'+Math.round(n||0).toLocaleString('es-AR');
+const conectado=()=>!!S.url;
+const online=()=>navigator.onLine && conectado();
+const pend=()=>S.ops.filter(o=>!o.sync);
+const vendidos=()=>S.ops.reduce((a,o)=>a+o.nums.length,0);
+const opDe=n=>S.ops.find(o=>o.nums.includes(n));
+const cobrado=o=>o.pago==='Debe'?0:(o.monto||0);
+const adeudado=o=>o.pago==='Debe'?(o.monto||0):0;
+const ganoYa=n=>S.ganadores.some(g=>g.num===n);
+
+function calc(c){
+  if(!c) return 0;
+  const L=[...S.precios].sort((a,b)=>a.c-b.c);
+  const ex=L.find(x=>x.c===c); if(ex) return ex.p;
+  const menor=L.filter(x=>x.c<c).pop();
+  if(!menor) return (L[0]?L[0].p/L[0].c:0)*c;
+  return menor.p+(c-menor.c)*S.extra;
+}
+
+// ============================================================
+// RED
+// ============================================================
+let cargando=false;
+function barra(v){ $('load').style.width=v+'%'; if(v>=100) setTimeout(()=>$('load').style.width='0',400); }
+
+async function llamar(payload){
+  if(!conectado()) throw new Error('Falta configurar la conexión en Ajustes.');
+  cargando=true; barra(30);
+  try{
+    const r=await fetch(S.url,{
+      method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:S.token, ...payload})
+    });
+    barra(80);
+    const j=await r.json();
+    if(!j.ok && j.error) throw new Error(j.error);
+    if(j.estado) aplicarEstado(j.estado);
+    return j;
+  } finally { cargando=false; barra(100); }
+}
+
+function aplicarEstado(est){
+  const pendientes=pend();
+  S.ops=(est.ops||[]).map(o=>({...o,sync:true}));
+  pendientes.forEach(p=>{ if(!S.ops.find(o=>o.id===p.id)) S.ops.push(p); });
+  S.ganadores=est.ganadores||[];
+  S.vendedores=est.vendedores||[];
+  if(est.config){
+    S.total=est.config.total||S.total;
+    if(est.config.precios&&est.config.precios.length) S.precios=est.config.precios;
+    S.extra=est.config.extra??S.extra;
+    if(est.config.premios&&est.config.premios.length) S.premios=est.config.premios;
+    S.nombreRifa=est.config.nombreRifa||S.nombreRifa;
+    S.abierta=est.config.abierta!==false;
+  }
+  S.ultSync=Date.now();
+  save(); render();
+}
+
+async function sync(silencio){
+  if(!conectado()){ if(!silencio) alert('Todavía no está conectada a la planilla. Configurala en Ajustes.'); return; }
+  if(!navigator.onLine){ if(!silencio) alert('Sin internet. Lo que cargaste queda guardado y se sube solo cuando vuelva la señal.'); return; }
+  const nuevas=pend().map(o=>({id:o.id,nums:o.nums,nombre:o.nombre,tel:o.tel,pago:o.pago,monto:o.monto,vend:o.vend,ts:o.ts}));
+  try{
+    const j=await llamar({action: nuevas.length?'push':'estado', ops:nuevas});
+    if(!silencio || (j.conflictos&&j.conflictos.length)){
+      let m = nuevas.length? 'Subiste '+nuevas.length+' venta(s).' : 'Actualizado.';
+      if(j.conflictos&&j.conflictos.length){
+        m+='\n\n⚠ NÚMEROS REPETIDOS — hay que resolverlos:\n'+
+           j.conflictos.map(c=>'Nº '+c.numero+' — también lo cargó '+c.vendedor+' ('+c.nombre+')').join('\n');
+      }
+      alert(m);
+    }
+  }catch(e){
+    if(!silencio) alert('No se pudo sincronizar.\n\n'+e.message+'\n\nLo que cargaste NO se pierde: queda en el celular y se sube cuando haya señal.');
+    render();
+  }
+}
+const actualizar=()=>sync(false);
+
+async function conectar(){
+  S.url=$('fUrl').value.trim(); S.token=$('fToken').value.trim(); save();
+  $('estadoConn').textContent='Probando…';
+  try{ await llamar({action:'estado'}); $('estadoConn').innerHTML='<span style="color:var(--ok)">Conectado. '+S.vendedores.length+' vendedores, '+vendidos()+' números vendidos.</span>'; }
+  catch(e){ $('estadoConn').innerHTML='<span style="color:#fca5a5">No anduvo: '+e.message+'</span>'; }
+}
+
+window.addEventListener('online',()=>{render(); if(pend().length) sync(true);});
+window.addEventListener('offline',render);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && conectado() && Date.now()-S.ultSync>60000) sync(true); });
+
+// ============================================================
+// RENDER
+// ============================================================
+let filtro='todos', pick=new Set(), editando=null, modoSel=false, pagoSel='Efectivo';
+
+function render(){
+  $('hTitulo').textContent=S.nombreRifa;
+  $('hVend').textContent=S.vendedor||'sin elegir';
+  $('hCount').textContent=vendidos()+'/'+S.total;
+
+  const q=pend().length;
+  $('hQ').style.display=q?'inline-block':'none'; $('hQ').textContent=q+' sin subir';
+  if(!conectado()){ $('hNet').textContent='Sin conectar'; $('hNet').className='chip bad'; }
+  else if(!navigator.onLine){ $('hNet').textContent='Sin internet'; $('hNet').className='chip off'; }
+  else { $('hNet').textContent='Actualizar'; $('hNet').className='chip on'; }
+
+  // aviso
+  let av='';
+  if(!conectado()) av='<b>Falta conectar la app.</b> Andá a Ajustes y pegá la dirección y la clave que te pasaron. Mientras tanto podés probar, pero no se comparte con nadie.';
+  else if(!S.vendedor) av='<b>Elegí quién sos</b> en Ajustes antes de cargar ventas.';
+  else if(!S.abierta) av='<b>La venta está cerrada.</b> Ya no se pueden cargar números.';
+  $('aviso').innerHTML=av; $('aviso').style.display=av?'block':'none';
+
+  // grilla
+  const bus=($('buscar').value||'').toLowerCase().trim();
+  let h='';
+  for(let i=1;i<=S.total;i++){
+    const o=opDe(i);
+    if(filtro==='libres'&&o) continue;
+    if(filtro==='vend'&&!o) continue;
+    if(filtro==='mios'&&(!o||o.vend!==S.vendedor)) continue;
+    if(filtro==='debe'&&(!o||o.pago!=='Debe')) continue;
+    if(bus && !(String(i).startsWith(bus) || (o&&(o.nombre||'').toLowerCase().includes(bus)))) continue;
+    let c='n';
+    if(o) c+= o.vend===S.vendedor?' mio':' otro';
+    if(o&&!o.sync) c+=' pend';
+    if(ganoYa(i)) c+=' gan';
+    if(pick.has(i)) c+=' pick';
+    h+=`<div class="${c}" onclick="tocar(${i})">${i}</div>`;
+  }
+  $('grid').innerHTML=h||'<div class="mut">Nada para mostrar.</div>';
+
+  // barra selección
+  $('selbar').classList.toggle('show',modoSel);
+  $('fab').style.display=(modoSel||!$('p-nums').classList.contains('sel'))?'none':'block';
+  const arr=[...pick].sort((a,b)=>a-b);
+  $('sbNums').textContent=arr.length? arr.length+(arr.length===1?' número: ':' números: ')+arr.join(', ') : 'Ningún número elegido';
+  $('sbMonto').textContent=plata(calc(arr.length));
+
+  // mis ventas
+  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>a.nums[0]-b.nums[0]);
+  $('mCant').textContent=mias.reduce((a,o)=>a+o.nums.length,0);
+  $('mPlata').textContent=plata(mias.reduce((a,o)=>a+cobrado(o),0));
+  const dm=mias.reduce((a,o)=>a+adeudado(o),0);
+  $('mDebe').textContent=dm?'+ '+plata(dm)+' a cobrar':'';
+  $('listaMias').innerHTML=mias.length? mias.map(o=>`
+    <div class="card" onclick="abrirOp('${o.id}')">
+      <div class="row">
+        <div style="min-width:0">
+          <b>${esc(o.nombre)}</b> <span class="mut">${esc(o.tel||'')}</span>
+          <div style="margin-top:4px">${[...o.nums].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('')}</div>
+          <div class="mut" style="margin-top:4px">${o.pago} · ${plata(o.monto)}${o.sync?'':' · <span style="color:#fde68a">falta subir</span>'}</div>
+        </div><div class="mut">›</div>
+      </div>
+    </div>`).join('') : '<div class="card mut">Todavía no cargaste ninguna venta.</div>';
+
+  // resumen
+  const v=vendidos();
+  $('rVend').textContent=v; $('rLibres').textContent=(S.total-v)+' libres';
+  $('rPlata').textContent=plata(S.ops.reduce((a,o)=>a+cobrado(o),0));
+  const dt=S.ops.reduce((a,o)=>a+adeudado(o),0);
+  $('rDebe').textContent=dt?'+ '+plata(dt)+' a cobrar':'';
+  $('rBar').style.width=(v/S.total*100)+'%';
+  const agr=f=>{const m={};S.ops.forEach(o=>{const k=f(o);m[k]=m[k]||{n:0,$:0};m[k].n+=o.nums.length;m[k].$+=cobrado(o);});return m;};
+  const tab=(m,el,h1)=>$(el).innerHTML=`<tr><th>${h1}</th><th>Nº</th><th>Cobrado</th></tr>`+
+    Object.entries(m).sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>`<tr><td>${esc(k)}</td><td>${x.n}</td><td>${plata(x.$)}</td></tr>`).join('');
+  tab(agr(o=>o.vend||'sin vendedor'),'tVend','Vendedor');
+  tab(agr(o=>o.pago),'tPago','Pago');
+  tab(agr(o=>o.nums.length+(o.nums.length===1?' número':' números')),'tCant','Compra');
+
+  // sorteo
+  $('sPart').textContent=v;
+  $('selPremio').innerHTML=S.premios.map((p,i)=>{
+    const ya=S.ganadores.find(g=>g.premio===p);
+    return `<option value="${i}"${ya?' disabled':''}>${esc(p)}${ya?' (ya sorteado)':''}</option>`;
+  }).join('');
+  $('listaGan').innerHTML=S.ganadores.length? S.ganadores.map(g=>`
+    <div class="card" style="margin:0 0 6px"><b>${esc(g.premio)}</b> — Nº ${g.num}
+    <div class="mut">${esc(g.nombre)} · ${esc(g.tel||'sin teléfono')} · vendido por ${esc(g.vend)}</div></div>`).join('')
+    : '<div class="mut">Todavía no se sorteó ningún premio.</div>';
+
+  // ajustes
+  const vs=S.vendedores.length?S.vendedores:(S.vendedor?[S.vendedor]:[]);
+  $('selVend').innerHTML='<option value="">— elegir —</option>'+vs.map(x=>`<option${x===S.vendedor?' selected':''}>${esc(x)}</option>`).join('');
+  $('fUrl').value=S.url; $('fToken').value=S.token;
+  $('cardLocal').style.display=conectado()?'none':'block';
+  $('boxExtra').style.display=conectado()?'none':'block';
+  $('notaPrecios').textContent=conectado()
+    ? 'Se edita en la hoja Config de la planilla. Acá se ve lo que está vigente.'
+    : 'Precio TOTAL según cuántos números lleve la misma persona.';
+  renderPrecios();
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderPrecios(){
+  const L=[...S.precios].sort((a,b)=>a.c-b.c);
+  $('listaPrecios').innerHTML = conectado()
+    ? L.map(x=>`<div class="mut">${x.c} nº → <b style="color:var(--txt)">${plata(x.p)}</b></div>`).join('')+
+      `<div class="mut">cada uno más → <b style="color:var(--txt)">${plata(S.extra)}</b></div>`
+    : L.map((x,i)=>`<div class="pr">
+        <input type="number" inputmode="numeric" value="${x.c}" onchange="editPrecio(${i},'c',this.value)" style="max-width:70px">
+        <span class="mut">nº =</span>
+        <input type="number" inputmode="numeric" value="${x.p}" onchange="editPrecio(${i},'p',this.value)">
+        <button class="btn sec sm" onclick="delPrecio(${i})">✕</button></div>`).join('');
+  if(!conectado()) $('pExtra').value=S.extra;
+  const max=L.length?L[L.length-1].c:1;
+  $('ejemploPrecio').innerHTML='Ejemplo: '+[1,2,3,max+1,max+3].filter((x,i,a)=>a.indexOf(x)===i)
+    .map(c=>`${c} nº → <b>${plata(calc(c))}</b>`).join(' · ');
+}
+
+// ============================================================
+// VENTAS
+// ============================================================
+function modoSeleccion(){
+  if(!S.vendedor) return alert('Primero elegí quién sos en Ajustes.');
+  if(!S.abierta)  return alert('La venta está cerrada.');
+  modoSel=true; pick.clear(); editando=null; render();
+}
+function cancelarSeleccion(){ modoSel=false; pick.clear(); render(); }
+
+function tocar(n){
+  const o=opDe(n);
+  if(modoSel){
+    if(o){ alert('El número '+n+' ya está vendido'+(o.vend===S.vendedor?' por vos':' por '+o.vend)+' a '+o.nombre+'.'); return; }
+    pick.has(n)?pick.delete(n):pick.add(n);
+    render(); return;
+  }
+  if(o) abrirOp(o.id);
+  else { if(!S.vendedor) return alert('Primero elegí quién sos en Ajustes.');
+         if(!S.abierta) return alert('La venta está cerrada.');
+         modoSel=true; pick.clear(); pick.add(n); render(); }
+}
+
+function continuarVenta(){
+  if(!pick.size) return alert('Elegí al menos un número.');
+  editando=null;
+  $('mTit').textContent='Nueva venta'; $('mSub').textContent=''; $('mAlert').innerHTML='';
+  $('fNom').value=''; $('fTel').value=''; setPago('Efectivo');
+  pintarNums([...pick]);
+  const m=calc(pick.size); $('fMonto').value=m; $('lblSug').textContent='(sugerido '+plata(m)+')';
+  $('btnAnular').style.display='none';
+  $('modal').classList.add('show');
+  setTimeout(()=>$('fNom').focus(),150);
+}
+
+function abrirOp(id){
+  const o=S.ops.find(x=>x.id===id); if(!o) return;
+  editando=o; modoSel=false; pick=new Set(o.nums);
+  const propia=o.vend===S.vendedor;
+  $('mTit').textContent=o.nombre;
+  $('mSub').textContent=propia?'Venta tuya':'Vendida por '+o.vend;
+  $('mAlert').innerHTML=propia?'':'<div class="warn">Solo podés editar tus propias ventas.</div>';
+  $('fNom').value=o.nombre; $('fTel').value=o.tel||''; setPago(o.pago);
+  pintarNums([...o.nums]);
+  $('fMonto').value=o.monto; $('lblSug').textContent='';
+  ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=!propia);
+  $('fPago').style.pointerEvents=propia?'auto':'none';
+  $('btnGuardar').style.display=propia?'block':'none';
+  $('btnAnular').style.display=propia?'block':'none';
+  $('modal').classList.add('show'); render();
+}
+
+function pintarNums(a){
+  $('mNums').innerHTML='<div class="mut">Números</div><div style="margin-top:4px">'+
+    a.sort((x,y)=>x-y).map(n=>`<span class="tag">${n}</span>`).join('')+'</div>';
+}
+function setPago(p){ pagoSel=p; document.querySelectorAll('#fPago .pg').forEach(x=>x.classList.toggle('sel',x.dataset.p===p)); }
+document.querySelectorAll('#fPago .pg').forEach(p=>p.onclick=()=>setPago(p.dataset.p));
+
+function cerrar(){
+  $('modal').classList.remove('show');
+  ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=false);
+  $('fPago').style.pointerEvents='auto'; $('btnGuardar').style.display='block';
+  editando=null; modoSel=false; pick.clear(); render();
+}
+
+function guardar(){
+  const nom=$('fNom').value.trim();
+  if(!nom) return alert('Falta el nombre del comprador.');
+  const nums=[...pick].sort((a,b)=>a-b);
+  if(!nums.length) return alert('No hay números seleccionados.');
+  if(editando && editando.vend!==S.vendedor) return cerrar();
+  const o={
+    id: editando? editando.id : (S.vendedor.substring(0,3)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)),
+    nums, nombre:nom, tel:$('fTel').value.trim(), pago:pagoSel,
+    monto:+$('fMonto').value||0, vend:S.vendedor, ts:Date.now(), sync:false
+  };
+  S.ops=S.ops.filter(x=>x.id!==o.id); S.ops.push(o);
+  save(); cerrar();
+  sync(true);
+}
+
+async function anular(){
+  if(!editando||!confirm('¿Anular la venta de '+editando.nombre+' (Nº '+editando.nums.join(', ')+')?')) return;
+  const o=editando, id=o.id;
+  if(!o.sync){ S.ops=S.ops.filter(x=>x.id!==id); save(); cerrar(); return; }
+  if(!navigator.onLine) return alert('Para anular una venta ya subida hace falta internet.');
+  try{ await llamar({action:'anular', id}); cerrar(); alert('Venta anulada.'); }
+  catch(e){ alert('No se pudo anular: '+e.message); }
+}
+
+// ============================================================
+// SORTEO
+// ============================================================
+let girando=false;
+function sortear(){
+  if(girando) return;
+  const premio=S.premios[+$('selPremio').value];
+  if(!premio) return alert('No hay premios configurados.');
+  if(S.ganadores.find(g=>g.premio===premio)) return alert('Ese premio ya fue sorteado.');
+  if(pend().length && !confirm('Hay '+pend().length+' venta(s) sin subir. ¿Sortear igual?')) return;
+
+  const yaGanaron=S.ganadores.map(g=>g.num);
+  const bolillero=[];
+  S.ops.forEach(o=>o.nums.forEach(n=>{ if(!yaGanaron.includes(n)) bolillero.push({num:n,op:o}); }));
+  if(!bolillero.length) return alert('No hay números vendidos disponibles.');
+
+  girando=true; $('btnSortear').disabled=true; $('sGanador').innerHTML='';
+  const g=bolillero[Math.floor(Math.random()*bolillero.length)];
+  let t=0;
+  const iv=setInterval(async()=>{
+    $('bola').textContent=bolillero[Math.floor(Math.random()*bolillero.length)].num;
+    t+=70;
+    if(t>2600){
+      clearInterval(iv); girando=false; $('btnSortear').disabled=false;
+      $('bola').textContent=g.num;
+      const o=g.op;
+      const gan={premio, num:g.num, nombre:o.nombre, tel:o.tel, vend:o.vend};
+      S.ganadores.push(gan); save();
+      $('sGanador').innerHTML=`<div style="font-size:19px;font-weight:700">${esc(o.nombre)}</div><div class="mut">${esc(o.tel||'')} · vendido por ${esc(o.vend)}</div>`;
+      render();
+      if(conectado() && navigator.onLine){
+        try{ await llamar({action:'ganador', ganador:gan}); }catch(e){ alert('El ganador salió pero no se pudo guardar en la planilla: '+e.message); }
+      }
+    }
+  },70);
+}
+
+// ============================================================
+// AJUSTES
+// ============================================================
+function setVend(v){ S.vendedor=v; save(); render(); }
+function setTotal(v){ S.total=Math.max(1,+v||300); save(); render(); }
+function setExtra(v){ S.extra=+v||0; save(); render(); }
+function setPremios(v){ S.premios=v.split('\n').map(x=>x.trim()).filter(Boolean); save(); render(); }
+function editPrecio(i,k,v){ const L=[...S.precios].sort((a,b)=>a.c-b.c); L[i][k]=+v||0; S.precios=L; save(); render(); }
+function delPrecio(i){ const L=[...S.precios].sort((a,b)=>a.c-b.c); L.splice(i,1); S.precios=L; save(); render(); }
+function addPrecio(){ const L=[...S.precios].sort((a,b)=>a.c-b.c); const c=(L.length?L[L.length-1].c:0)+1; S.precios=[...L,{c,p:calc(c)}]; save(); render(); }
+function reset(){ if(confirm('Borra los datos de ESTE celular y los vuelve a bajar de la planilla. Lo que no hayas subido se pierde.')){ localStorage.removeItem(K); location.reload(); } }
+
+function compartir(){
+  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>a.nums[0]-b.nums[0]);
+  const t=S.nombreRifa.toUpperCase()+' — ventas de '+S.vendedor+'\n\n'+
+    mias.map(o=>`${o.nums.join(', ')} — ${o.nombre} — ${o.tel} — ${o.pago} ${plata(o.monto)}`).join('\n')+
+    `\n\n${mias.reduce((a,o)=>a+o.nums.length,0)} números · cobrado ${plata(mias.reduce((a,o)=>a+cobrado(o),0))}`+
+    (mias.reduce((a,o)=>a+adeudado(o),0)?` · a cobrar ${plata(mias.reduce((a,o)=>a+adeudado(o),0))}`:'');
+  if(navigator.share) navigator.share({text:t}).catch(()=>{});
+  else window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+}
+
+function exportCSV(){
+  const head=['Numero','Nombre','Telefono','Pago','MontoOperacion','NumerosDeLaOperacion','Vendedor','Fecha'];
+  const body=[];
+  S.ops.forEach(o=>o.nums.forEach(n=>body.push([n,o.nombre,o.tel,o.pago,o.monto,o.nums.length,o.vend,new Date(o.ts).toLocaleString('es-AR')])));
+  body.sort((a,b)=>a[0]-b[0]);
+  const csv='﻿'+[head,...body].map(x=>x.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='rifa.csv'; a.click();
+}
+
+// ============================================================
+// UI
+// ============================================================
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('sel')); t.classList.add('sel');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('sel'));
+  $('p-'+t.dataset.t).classList.add('sel');
+  if(t.dataset.t!=='nums'){ modoSel=false; pick.clear(); }
+  render(); window.scrollTo(0,0);
+});
+document.querySelectorAll('.f').forEach(f=>f.onclick=()=>{
+  document.querySelectorAll('.f').forEach(x=>x.classList.remove('sel')); f.classList.add('sel');
+  filtro=f.dataset.f; render();
+});
+$('buscar').oninput=render;
+
+render();
+if(conectado() && navigator.onLine) sync(true);
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  fetch('sw.js').then(r=>r.text()).then(t=>{
+    const m=t.match(/SW_VERSION\s*=\s*'([^']+)'/); if(m) $('ver').textContent=m[1];
+  }).catch(()=>{});
+}
+</script>
+</body>
+</html>
