@@ -269,7 +269,7 @@ input.bad{border-color:var(--bad)}
     <input id="fNom" autocomplete="name">
     <label>WhatsApp del comprador</label>
     <input id="fTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="3406 123456">
-   
+    <div class="hint" id="telHint">Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.</div>
     <label>Forma de pago</label>
     <div class="pagos" id="fPago">
       <div class="pg sel" data-p="Efectivo">Efectivo</div>
@@ -709,14 +709,20 @@ function setPago(p){ pagoSel=p; document.querySelectorAll('#fPago .pg').forEach(
 document.querySelectorAll('#fPago .pg').forEach(p=>p.onclick=()=>setPago(p.dataset.p));
 
 // Feedback en vivo del teléfono, mientras se tipea
+// Ojo: esto corre al abrir el modal de venta. Si algo acá tira una excepción,
+// no se puede cargar ninguna venta. Por eso tolera que falte el cartelito.
 function pintarTel(){
-  const t=telNorm($('fTel').value), h=$('telHint'), i=$('fTel');
-  i.classList.remove('ok','bad'); h.classList.remove('ok','bad');
-  if(t.vacio){ h.textContent='Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.'; return; }
-  if(t.ok){ i.classList.add('ok'); h.classList.add('ok'); h.textContent='✓ Le va a llegar a +54 9 '+t.lindo; }
-  else    { i.classList.add('bad'); h.classList.add('bad'); h.textContent='✕ '+t.msg[0].toUpperCase()+t.msg.slice(1)+' — sin comprobante por WhatsApp'; }
+  const i=$('fTel'); if(!i) return;
+  const t=telNorm(i.value), h=$('telHint');
+  i.classList.remove('ok','bad');
+  if(!t.vacio) i.classList.add(t.ok?'ok':'bad');
+  if(!h) return;
+  h.classList.remove('ok','bad');
+  if(t.vacio)   h.textContent='Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.';
+  else if(t.ok){ h.classList.add('ok');  h.textContent='✓ Le va a llegar a +54 9 '+t.lindo; }
+  else         { h.classList.add('bad'); h.textContent='✕ '+t.msg[0].toUpperCase()+t.msg.slice(1)+' — sin comprobante por WhatsApp'; }
 }
-$('fTel').addEventListener('input',pintarTel);
+if($('fTel')) $('fTel').addEventListener('input',pintarTel);
 
 function cerrar(){
   $('modal').classList.remove('show');
