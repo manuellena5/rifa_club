@@ -23,6 +23,26 @@ var SH_GAN    = 'Ganadores';
 var COLS_VENTAS = ['ID','Numeros','Nombre','Telefono','Pago','Monto','Vendedor','Fecha','Anulado'];
 var COLS_GAN    = ['Premio','Numero','Nombre','Telefono','Vendedor','Fecha'];
 
+// Texto del comprobante que el vendedor le manda al comprador por WhatsApp.
+// Comodines disponibles: {nombre} {numeros} {cantidad} {monto} {rifa}
+//                        {vendedor} {pago} {premios}
+// Para cortar renglón escribí  \n  (barra invertida + n), no Alt+Enter.
+var MSG_WA_DEF = 'Hola {nombre}! Gracias por colaborar con la {rifa}.\\n' +
+                 'Tus números son: {numeros}\\n' +
+                 'Total: {monto} ({pago})\\n' +
+                 'Te los vendió {vendedor}. ¡Mucha suerte!';
+
+var CONFIG_DEF = [
+  ['nombreRifa','Rifa Club Mitre','Título que se ve arriba en la app'],
+  ['totalNumeros','300','Cuántos números tiene la rifa'],
+  ['precios','1=10000; 2=15000; 3=22000','Precio TOTAL según cuántos números lleve la misma persona'],
+  ['precioExtra','7000','Cuánto suma cada número más allá del último escalón'],
+  ['premios','1º Premio | 2º Premio | 3º Premio','Separados por barra vertical'],
+  ['token','cambiar-esta-clave','Clave compartida. Cambiala y pasásela solo a los vendedores'],
+  ['ventaAbierta','SI','Poné NO para cerrar la carga antes del sorteo'],
+  ['msgWhatsapp', MSG_WA_DEF, 'Comprobante que se le manda al comprador. Comodines: {nombre} {numeros} {cantidad} {monto} {rifa} {vendedor} {pago} {premios}. Usá \\n para cortar renglón']
+];
+
 // ============================================================
 // SETUP — correr una sola vez
 // ============================================================
@@ -42,17 +62,14 @@ function crearHojas(){
     c.appendRow(['Clave','Valor','Explicación']);
     c.getRange(1,1,1,3).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
     c.setFrozenRows(1);
-    [
-      ['nombreRifa','Rifa Club Mitre','Título que se ve arriba en la app'],
-      ['totalNumeros','300','Cuántos números tiene la rifa'],
-      ['precios','1=10000; 2=15000; 3=22000','Precio TOTAL según cuántos números lleve la misma persona'],
-      ['precioExtra','7000','Cuánto suma cada número más allá del último escalón'],
-      ['premios','1º Premio | 2º Premio | 3º Premio','Separados por barra vertical'],
-      ['token','cambiar-esta-clave','Clave compartida. Cambiala y pasásela solo a los vendedores'],
-      ['ventaAbierta','SI','Poné NO para cerrar la carga antes del sorteo']
-    ].forEach(function(r){ c.appendRow(r); });
     c.setColumnWidth(2, 260); c.setColumnWidth(3, 380);
   }
+  // Agrega solo las claves que falten: sirve para reparar planillas viejas
+  // sin pisar los valores que ya cargaste.
+  var yaEstan = {};
+  var dc = c.getDataRange().getValues();
+  for (var i = 1; i < dc.length; i++){ if (dc[i][0]) yaEstan[String(dc[i][0]).trim()] = true; }
+  CONFIG_DEF.forEach(function(r){ if (!yaEstan[r[0]]) c.appendRow(r); });
 
   var d = hoja_(ss, SH_VEND);
   if (d.getLastRow() === 0) {
@@ -252,7 +269,8 @@ function leerEstado_(){
       precios: precios,
       extra: Number(cfg.precioExtra) || 0,
       premios: String(cfg.premios || '').split('|').map(function(x){ return x.trim(); }).filter(String),
-      abierta: String(cfg.ventaAbierta || 'SI').toUpperCase() !== 'NO'
+      abierta: String(cfg.ventaAbierta || 'SI').toUpperCase() !== 'NO',
+      msgWa: String(cfg.msgWhatsapp || MSG_WA_DEF)
     },
     servidor: new Date().getTime()
   };

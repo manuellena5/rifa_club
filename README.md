@@ -33,8 +33,23 @@ Funciona sin internet: cada uno carga y se sube solo cuando vuelve la señal.
 | `premios` | `1º Premio \| 2º Premio \| 3º Premio` | Separados por barra |
 | `token` | (poné una clave tuya) | Sin esto cualquiera que tenga el link podría escribir |
 | `ventaAbierta` | SI | Poné `NO` el día del sorteo y nadie puede cargar más |
+| `msgWhatsapp` | (ver abajo) | El comprobante que se le manda al comprador |
 
 Todo esto lo cambiás en la planilla y los vendedores lo reciben solos. No hay que tocar código.
+
+### El comprobante por WhatsApp
+
+`msgWhatsapp` es el texto que el vendedor le manda al comprador después de cargar la venta. Acepta estos comodines:
+
+`{nombre}` `{numeros}` `{cantidad}` `{monto}` `{rifa}` `{vendedor}` `{pago}` `{premios}`
+
+Para cortar renglón escribí `\n` (barra invertida y ene), **no** Alt+Enter. Por defecto queda:
+
+```
+Hola {nombre}! Gracias por colaborar con la {rifa}.\nTus números son: {numeros}\nTotal: {monto} ({pago})\nTe los vendió {vendedor}. ¡Mucha suerte!
+```
+
+> Si ya tenías la planilla creada de antes, corré **Rifa → Crear / reparar hojas**: agrega `msgWhatsapp` sin tocar el resto de lo que cargaste.
 
 ---
 
@@ -101,6 +116,10 @@ Una vez agregada a la pantalla de inicio funciona sin internet: podés cargar ve
 **Una operación = varios números + un monto.** Si a la misma persona le vendés el 12 y el 13, es una sola fila con `12, 13` y el precio de promo. Por eso el precio no se puede calcular multiplicando.
 
 **Nada se borra.** Anular una venta escribe `SI` en la columna Anulado; la fila queda para auditar.
+
+**El WhatsApp se manda desde el celular del vendedor, no desde un servidor.** Al guardar una venta aparece un botón que abre WhatsApp con el chat del comprador y el mensaje ya escrito; el vendedor solo aprieta enviar. No hay costo, no hay API de Meta, no hay número del club. La contra es que siempre hace falta ese toque: no se puede mandar solo.
+
+**El teléfono se acomoda solo.** El vendedor lo escribe como se lo dicten — `0342 15 512-3456`, `+54 342...`, `3425123456` — y la app lo convierte a formato internacional. Debajo del campo se ve en vivo a qué número va a llegar. Si no da un móvil argentino válido, la venta se guarda igual pero queda marcada como *sin WhatsApp* en Mis ventas. Lo que se guarda en la planilla ya va normalizado.
 
 **El sorteo saca solo entre números vendidos**, así que nunca puede salir uno vacío. Un número que ya ganó no entra en el premio siguiente. Los ganadores se guardan en la planilla.
 

@@ -77,6 +77,15 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
 .bola{font-size:64px;font-weight:900;text-align:center;letter-spacing:2px;padding:22px 0;color:var(--acc);font-variant-numeric:tabular-nums}
 .pr{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .pr input{flex:1}
+.hint{font-size:12px;color:var(--muted);margin-top:5px;min-height:17px;line-height:1.35}
+.hint.ok{color:#86efac}
+.hint.bad{color:#fca5a5}
+input.ok{border-color:var(--ok)}
+input.bad{border-color:var(--bad)}
+.btn.wa{background:#25d366;color:#052e16}
+.tick{width:54px;height:54px;border-radius:50%;background:#14532d;border:2px solid var(--ok);color:#bbf7d0;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.wachip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #166534;color:#86efac;background:#052e16;margin-left:6px;vertical-align:1px}
+.wachip.no{border-color:#78350f;color:#fde68a;background:#2a1a05}
 #load{position:fixed;top:0;left:0;height:3px;background:var(--acc);width:0;transition:width .3s;z-index:99}
 </style>
 </head>
@@ -246,8 +255,9 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
     <div id="mNums" style="margin-top:10px"></div>
     <label>Nombre y apellido</label>
     <input id="fNom" autocomplete="name">
-    <label>Teléfono</label>
-    <input id="fTel" type="tel" inputmode="tel" placeholder="342 ...">
+    <label>WhatsApp del comprador</label>
+    <input id="fTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="342 512 3456">
+    <div class="hint" id="telHint">Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.</div>
     <label>Forma de pago</label>
     <div class="pagos" id="fPago">
       <div class="pg sel" data-p="Efectivo">Efectivo</div>
@@ -262,6 +272,21 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
   </div>
 </div>
 
+<!-- MODAL CONFIRMACIÓN -->
+<div class="modal" id="modalOk" onclick="if(event.target===this)cerrarOk()">
+  <div class="sheet">
+    <div style="text-align:center">
+      <div class="tick">✓</div>
+      <h3 style="margin:0 0 2px">Venta guardada</h3>
+      <div class="mut" id="okSub"></div>
+    </div>
+    <div id="okNums" style="text-align:center;margin:12px 0"></div>
+    <div id="okAlert"></div>
+    <button class="btn wa" id="btnWa" onclick="enviarWa()" style="margin-top:6px">Enviar comprobante por WhatsApp</button>
+    <button class="btn sec" onclick="cerrarOk()" style="margin-top:8px">Listo</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIGURACIÓN — pegá acá la URL y la clave para que los
@@ -272,14 +297,19 @@ const TOKEN_FIJO   = '0001';   //
 
 // ============================================================
 const K='rifa_v5';
+const MSG_DEF='Hola {nombre}! Gracias por colaborar con la {rifa}.\nTus números son: {numeros}\nTotal: {monto} ({pago})\nTe los vendió {vendedor}. ¡Mucha suerte!';
 const DEF={
   vendedor:'', total:300, precios:[{c:1,p:10000},{c:2,p:15000},{c:3,p:22000}], extra:7000,
   premios:['1º Premio','2º Premio','3º Premio'], nombreRifa:'Rifa del Club', abierta:true,
-  ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0
+  ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0,
+  msgWa:MSG_DEF, avisados:{}
 };
 let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(K)||'{}'));
 if(API_URL_FIJA) S.url=API_URL_FIJA;
 if(TOKEN_FIJO)   S.token=TOKEN_FIJO;
+if(!S.avisados) S.avisados={};
+if(!S.msgWa)    S.msgWa=MSG_DEF;
+let ultimaVenta=null;
 const save=()=>localStorage.setItem(K,JSON.stringify(S));
 
 const $=id=>document.getElementById(id);
@@ -300,6 +330,82 @@ function calc(c){
   const menor=L.filter(x=>x.c<c).pop();
   if(!menor) return (L[0]?L[0].p/L[0].c:0)*c;
   return menor.p+(c-menor.c)*S.extra;
+}
+
+// ============================================================
+// WHATSAPP — normalización y validación de teléfonos argentinos
+// ============================================================
+// Todo número argentino tiene 10 dígitos: área (2, 3 o 4) + abonado.
+// Lo que sobra en la práctica es el 0 de larga distancia, el 15 de
+// celular, el +54 y el 9. Esto los saca sin que el vendedor piense.
+
+// Áreas de 3 dígitos. Las de 2 son solo el 11. El resto, 4.
+const AREA3=new Set(['220','221','223','230','236','237','249','260','261','263','264','266','280','291','297','299','341','342','343','345','348','351','353','358','362','364','370','376','379','380','381','383','385','387','388']);
+const largoArea=d=> d.slice(0,2)==='11' ? 2 : (AREA3.has(d.slice(0,3)) ? 3 : 4);
+
+function telNorm(raw){
+  let d=String(raw??'').replace(/\D/g,'');
+  if(!d) return {ok:false, vacio:true, e164:'', lindo:'', msg:''};
+
+  d=d.replace(/^00/,'');                                   // salida internacional
+  if(/^549/.test(d) && d.length>=12)     d=d.slice(3);     // +54 9 ...
+  else if(/^54/.test(d) && d.length>=11) d=d.slice(2);     // +54 ...
+  d=d.replace(/^0+/,'');                                   // 0 de larga distancia
+  if(d.length===11 && d[0]==='9') d=d.slice(1);            // 9 suelto adelante
+
+  if(d.length===12){                                       // sacar el 15 del medio
+    const a=largoArea(d);
+    if(d.slice(a,a+2)==='15') d=d.slice(0,a)+d.slice(a+2);
+  }
+
+  const falta=10-d.length;
+  let msg='';
+  if(falta>0)      msg=(falta===1?'falta 1 dígito':'faltan '+falta+' dígitos');
+  else if(falta<0) msg=(falta===-1?'sobra 1 dígito':'sobran '+(-falta)+' dígitos');
+  else if(!/^(11|[23])/.test(d)) msg='no parece un número argentino';
+
+  if(msg) return {ok:false, vacio:false, e164:'', lindo:'', msg};
+
+  const a=largoArea(d), resto=d.slice(a);
+  return {
+    ok:true, vacio:false,
+    e164:'549'+d,
+    lindo:d.slice(0,a)+' '+resto.slice(0,resto.length-4)+'-'+resto.slice(-4)
+  };
+}
+
+// Arma el mensaje según la plantilla de la hoja Config
+function msgVenta(o){
+  const vals={
+    nombre:   o.nombre||'',
+    numeros:  [...o.nums].sort((a,b)=>a-b).join(', '),
+    cantidad: o.nums.length,
+    monto:    plata(o.monto),
+    rifa:     S.nombreRifa,
+    vendedor: o.vend||'',
+    pago:     o.pago||'',
+    premios:  S.premios.join(' · ')
+  };
+  return String(S.msgWa||MSG_DEF)
+    .replace(/\\n/g,'\n')
+    .replace(/\{(\w+)\}/g,(m,k)=> k in vals ? vals[k] : m);
+}
+
+const avisado=id=>!!S.avisados[id];
+
+function enviarWa(id){
+  const o = id ? S.ops.find(x=>x.id===id) : ultimaVenta;
+  if(!o) return;
+  const t=telNorm(o.tel);
+  if(!t.ok){
+    return alert(t.vacio
+      ? 'Esta venta no tiene WhatsApp cargado.\n\nAbrí la venta y agregalo.'
+      : 'El WhatsApp de esta venta no sirve: '+t.msg+'.\n\nAbrí la venta y corregilo.');
+  }
+  S.avisados[o.id]=Date.now(); save(); render();
+  const url='https://wa.me/'+t.e164+'?text='+encodeURIComponent(msgVenta(o));
+  const w=window.open(url,'_blank');
+  if(!w) location.href=url;
 }
 
 // ============================================================
@@ -338,6 +444,7 @@ function aplicarEstado(est){
     if(est.config.premios&&est.config.premios.length) S.premios=est.config.premios;
     S.nombreRifa=est.config.nombreRifa||S.nombreRifa;
     S.abierta=est.config.abierta!==false;
+    if(est.config.msgWa) S.msgWa=est.config.msgWa;
   }
   S.ultSync=Date.now();
   save(); render();
@@ -430,16 +537,21 @@ function render(){
   $('mPlata').textContent=plata(mias.reduce((a,o)=>a+cobrado(o),0));
   const dm=mias.reduce((a,o)=>a+adeudado(o),0);
   $('mDebe').textContent=dm?'+ '+plata(dm)+' a cobrar':'';
-  $('listaMias').innerHTML=mias.length? mias.map(o=>`
-    <div class="card" onclick="abrirOp('${o.id}')">
-      <div class="row">
+  $('listaMias').innerHTML=mias.length? mias.map(o=>{
+    const t=telNorm(o.tel), av=avisado(o.id);
+    return `
+    <div class="card">
+      <div class="row" onclick="abrirOp('${o.id}')">
         <div style="min-width:0">
           <b>${esc(o.nombre)}</b> <span class="mut">${esc(o.tel||'')}</span>
+          ${t.ok? (av?'<span class="wachip">comprobante enviado</span>':'') : '<span class="wachip no">sin WhatsApp</span>'}
           <div style="margin-top:4px">${[...o.nums].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('')}</div>
           <div class="mut" style="margin-top:4px">${o.pago} · ${plata(o.monto)}${o.sync?'':' · <span style="color:#fde68a">falta subir</span>'}</div>
         </div><div class="mut">›</div>
       </div>
-    </div>`).join('') : '<div class="card mut">Todavía no cargaste ninguna venta.</div>';
+      ${t.ok? `<button class="btn ${av?'sec':'wa'} sm" style="margin-top:10px" onclick="enviarWa('${o.id}')">${av?'Reenviar comprobante':'Enviar comprobante'}</button>`:''}
+    </div>`;
+  }).join('') : '<div class="card mut">Todavía no cargaste ninguna venta.</div>';
 
   // resumen
   const v=vendidos();
@@ -523,7 +635,7 @@ function continuarVenta(){
   if(!pick.size) return alert('Elegí al menos un número.');
   editando=null;
   $('mTit').textContent='Nueva venta'; $('mSub').textContent=''; $('mAlert').innerHTML='';
-  $('fNom').value=''; $('fTel').value=''; setPago('Efectivo');
+  $('fNom').value=''; $('fTel').value=''; setPago('Efectivo'); pintarTel();
   pintarNums([...pick]);
   const m=calc(pick.size); $('fMonto').value=m; $('lblSug').textContent='(sugerido '+plata(m)+')';
   $('btnAnular').style.display='none';
@@ -538,7 +650,7 @@ function abrirOp(id){
   $('mTit').textContent=o.nombre;
   $('mSub').textContent=propia?'Venta tuya':'Vendida por '+o.vend;
   $('mAlert').innerHTML=propia?'':'<div class="warn">Solo podés editar tus propias ventas.</div>';
-  $('fNom').value=o.nombre; $('fTel').value=o.tel||''; setPago(o.pago);
+  $('fNom').value=o.nombre; $('fTel').value=o.tel||''; setPago(o.pago); pintarTel();
   pintarNums([...o.nums]);
   $('fMonto').value=o.monto; $('lblSug').textContent='';
   ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=!propia);
@@ -555,6 +667,16 @@ function pintarNums(a){
 function setPago(p){ pagoSel=p; document.querySelectorAll('#fPago .pg').forEach(x=>x.classList.toggle('sel',x.dataset.p===p)); }
 document.querySelectorAll('#fPago .pg').forEach(p=>p.onclick=()=>setPago(p.dataset.p));
 
+// Feedback en vivo del teléfono, mientras se tipea
+function pintarTel(){
+  const t=telNorm($('fTel').value), h=$('telHint'), i=$('fTel');
+  i.classList.remove('ok','bad'); h.classList.remove('ok','bad');
+  if(t.vacio){ h.textContent='Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.'; return; }
+  if(t.ok){ i.classList.add('ok'); h.classList.add('ok'); h.textContent='✓ Le va a llegar a +54 9 '+t.lindo; }
+  else    { i.classList.add('bad'); h.classList.add('bad'); h.textContent='✕ '+t.msg[0].toUpperCase()+t.msg.slice(1)+' — sin comprobante por WhatsApp'; }
+}
+$('fTel').addEventListener('input',pintarTel);
+
 function cerrar(){
   $('modal').classList.remove('show');
   ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=false);
@@ -568,15 +690,36 @@ function guardar(){
   const nums=[...pick].sort((a,b)=>a-b);
   if(!nums.length) return alert('No hay números seleccionados.');
   if(editando && editando.vend!==S.vendedor) return cerrar();
+
+  // El teléfono no es obligatorio, pero si está mal se avisa antes de guardar
+  const crudo=$('fTel').value.trim(), t=telNorm(crudo);
+  if(crudo && !t.ok && !confirm('El WhatsApp no cierra: '+t.msg+'.\n\n¿Guardar igual? No vas a poder mandarle el comprobante hasta corregirlo.')) return;
+
   const o={
     id: editando? editando.id : (S.vendedor.substring(0,3)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)),
-    nums, nombre:nom, tel:$('fTel').value.trim(), pago:pagoSel,
+    nums, nombre:nom, tel: t.ok? t.lindo : crudo, pago:pagoSel,
     monto:+$('fMonto').value||0, vend:S.vendedor, ts:Date.now(), sync:false
   };
   S.ops=S.ops.filter(x=>x.id!==o.id); S.ops.push(o);
   save(); cerrar();
   sync(true);
+  abrirOk(o);
 }
+
+// ============================================================
+// CONFIRMACIÓN + COMPROBANTE
+// ============================================================
+function abrirOk(o){
+  ultimaVenta=o;
+  const t=telNorm(o.tel);
+  $('okSub').textContent=o.nombre+' · '+plata(o.monto)+' · '+o.pago;
+  $('okNums').innerHTML=[...o.nums].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('');
+  $('okAlert').innerHTML = t.ok ? '' :
+    `<div class="warn">${t.vacio?'No cargaste WhatsApp':'El WhatsApp no cierra: '+t.msg}. La venta quedó guardada, pero no le podés mandar el comprobante. Abrila desde <b>Mis ventas</b> para corregirlo.</div>`;
+  $('btnWa').style.display=t.ok?'block':'none';
+  $('modalOk').classList.add('show');
+}
+function cerrarOk(){ $('modalOk').classList.remove('show'); ultimaVenta=null; }
 
 async function anular(){
   if(!editando||!confirm('¿Anular la venta de '+editando.nombre+' (Nº '+editando.nums.join(', ')+')?')) return;
