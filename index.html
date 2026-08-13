@@ -39,7 +39,8 @@ input:disabled{opacity:.6}
 .f{padding:7px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;cursor:pointer;white-space:nowrap}
 .f.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
-.n{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
+.n{position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
+.copa{position:absolute;top:1px;left:2px;font-size:12px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px #000c)}
 .n.mio{background:#14532d;border-color:var(--ok);color:#dcfce7}
 .n.otro{background:#1e3a8a;border-color:var(--otro);color:#dbeafe}
 .n.pend{border-style:dashed;border-color:var(--pend)}
@@ -131,6 +132,7 @@ input.bad{border-color:var(--bad)}
       <span><i class="dot" style="background:#14532d;border:1px solid #22c55e"></i>Mío</span>
       <span><i class="dot" style="background:#1e3a8a;border:1px solid #3b82f6"></i>Otro vendedor</span>
       <span><i class="dot" style="background:#78350f;border:1px dashed #f59e0b"></i>Falta subir</span>
+      <span><span style="font-size:12px">🏆</span> Ganador</span>
     </div>
     <div class="grid" id="grid"></div>
   </section>
@@ -543,9 +545,10 @@ function render(){
     let c='n';
     if(o) c+= o.vend===S.vendedor?' mio':' otro';
     if(o&&!o.sync) c+=' pend';
-    if(ganoYa(i)) c+=' gan';
+    const gano=ganoYa(i);
+    if(gano) c+=' gan';
     if(pick.has(i)) c+=' pick';
-    h+=`<div class="${c}" onclick="tocar(${i})">${i}</div>`;
+    h+=`<div class="${c}" onclick="tocar(${i})">${gano?'<i class="copa">🏆</i>':''}${i}</div>`;
   }
   $('grid').innerHTML=h||'<div class="mut">Nada para mostrar.</div>';
 
@@ -683,7 +686,10 @@ function abrirOp(id){
   editando=o; modoSel=false; pick=new Set(o.nums);
   const propia=o.vend===S.vendedor;
   $('mTit').textContent=o.nombre;
-  $('mSub').textContent=propia?'Venta tuya':'Vendida por '+o.vend;
+  // Si alguno de los números de esta venta ganó, se avisa acá mismo
+  const prem=S.ganadores.filter(g=>o.nums.includes(g.num));
+  $('mSub').innerHTML=(propia?'Venta tuya':'Vendida por '+esc(o.vend))+
+    (prem.length? ' · <b style="color:#facc15">🏆 '+prem.map(g=>esc(g.premio)+' — Nº '+g.num).join(' · ')+'</b>' : '');
   $('mAlert').innerHTML=propia?'':'<div class="warn">Solo podés editar tus propias ventas.</div>';
   $('fNom').value=o.nombre; $('fTel').value=o.tel||''; setPago(o.pago); pintarTel();
   pintarNums([...o.nums]);
