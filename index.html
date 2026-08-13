@@ -89,10 +89,13 @@ input.bad{border-color:var(--bad)}
 .wachip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #166534;color:#86efac;background:#052e16;margin-left:6px;vertical-align:1px}
 .wachip.no{border-color:#78350f;color:#fde68a;background:#2a1a05}
 #load{position:fixed;top:0;left:0;height:3px;background:var(--acc);width:0;transition:width .3s;z-index:99}
+.toast{position:fixed;left:50%;bottom:84px;z-index:60;background:#000000ee;border:1px solid var(--line);padding:11px 18px;border-radius:999px;font-size:13px;white-space:nowrap;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(8px);transition:opacity .18s,transform .18s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 <div id="load"></div>
+<div class="toast" id="toast"></div>
 
 <header>
   <div class="hrow">
@@ -908,6 +911,30 @@ document.querySelectorAll('.f').forEach(f=>f.onclick=()=>{
   filtro=f.dataset.f; render();
 });
 $('buscar').oninput=render;
+
+// Cartelito flotante, para avisos que no merecen frenar al vendedor con un alert
+let tToast=null;
+function toast(msg, ms){
+  const t=$('toast'); if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(tToast); tToast=setTimeout(()=>t.classList.remove('show'), ms||2000);
+}
+
+// ============================================================
+// BOTÓN ATRÁS — hay que tocarlo dos veces para salir
+// ============================================================
+// Dejamos una entrada de sobra en el historial. El primer "atrás" se la come
+// y solo muestra el aviso; si toca de nuevo antes de que la repongamos, ya no
+// queda nada que consumir y el celular cierra la app. Si no volvió a tocar en
+// 2 segundos, la reponemos y todo sigue como antes.
+let tSalir=null;
+const armarSalida=()=>history.pushState({rifa:1},'',location.href);
+armarSalida();
+window.addEventListener('popstate',()=>{
+  toast('Tocá atrás de nuevo para salir');
+  clearTimeout(tSalir);
+  tSalir=setTimeout(armarSalida,2200);
+});
 
 render();
 if(conectado() && navigator.onLine) sync(true);
