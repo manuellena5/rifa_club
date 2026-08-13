@@ -21,7 +21,7 @@ var SH_VEND   = 'Vendedores';
 var SH_GAN    = 'Ganadores';
 
 var COLS_VENTAS = ['ID','Numeros','Nombre','Telefono','Pago','Monto','Vendedor','Fecha','Anulado'];
-var COLS_GAN    = ['Premio','Numero','Nombre','Telefono','Vendedor','Fecha'];
+var COLS_GAN    = ['Premio','Numero','Nombre','Telefono','Vendedor','Fecha','Anulado','VuelveAlBolillero','AnuladoEl'];
 
 // Texto del comprobante que el vendedor le manda al comprador por WhatsApp.
 // Comodines disponibles: {nombre} {numeros} {cantidad} {monto} {rifa}
@@ -82,9 +82,18 @@ function crearHojas(){
   var g = hoja_(ss, SH_GAN);
   if (g.getLastRow() === 0) {
     g.appendRow(COLS_GAN);
-    g.getRange(1,1,1,COLS_GAN.length).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
     g.setFrozenRows(1);
+  } else {
+    // Planilla vieja: agrega al final las columnas que falten, sin tocar los datos
+    var hg = g.getRange(1, 1, 1, g.getLastColumn()).getValues()[0];
+    COLS_GAN.forEach(function(col){
+      if (hg.indexOf(col) === -1){
+        g.getRange(1, g.getLastColumn() + 1).setValue(col);
+        hg.push(col);
+      }
+    });
   }
+  g.getRange(1,1,1,g.getLastColumn()).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
 
   SpreadsheetApp.getUi().alert(
     'Listo.\n\nAhora:\n1) Cargá los vendedores en la hoja "Vendedores".\n' +
@@ -122,6 +131,7 @@ function doPost(e){
     if (body.action === 'push')        r = pushVentas_(body.ops || []);
     else if (body.action === 'anular') r = anular_(body.id);
     else if (body.action === 'ganador')r = guardarGanador_(body.ganador);
+    else if (body.action === 'anularGanador') r = anularGanador_(body.ganador);
     else if (body.action === 'estado') r = {ok:true};
     else return json_({ok:false, error:'Acción desconocida: ' + body.action});
 
@@ -204,11 +214,41 @@ function guardarGanador_(g){
   if (!g) return {ok:false, error:'Falta el ganador'};
   var sh = SpreadsheetApp.getActive().getSheetByName(SH_GAN);
   var datos = sh.getDataRange().getValues();
+  var iAnu = datos[0].indexOf('Anulado');
+
+  // Un premio anulado se puede volver a sortear: solo bloquea el vigente
   for (var f = 1; f < datos.length; f++){
+    if (iAnu >= 0 && String(datos[f][iAnu]).toUpperCase() === 'SI') continue;
     if (String(datos[f][0]) === String(g.premio)) return {ok:false, error:'Ese premio ya estaba sorteado'};
   }
-  sh.appendRow([g.premio, g.num, g.nombre || '', g.tel || '', g.vend || '', new Date()]);
+
+  sh.appendRow([g.premio, g.num, g.nombre || '', g.tel || '', g.vend || '', new Date(), '', '', '']);
   return {ok:true};
+}
+
+// Marca el ganador como anulado. No borra la fila: queda para auditar.
+// g.vuelve === false  =>  ese número no participa más de ningún premio.
+function anularGanador_(g){
+  if (!g || !g.premio) return {ok:false, error:'Falta el premio a anular'};
+  var sh = SpreadsheetApp.getActive().getSheetByName(SH_GAN);
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+
+  // Planilla vieja: creamos las columnas que falten al vuelo
+  ['Anulado','VuelveAlBolillero','AnuladoEl'].forEach(function(col){
+    if (head.indexOf(col) === -1){ sh.getRange(1, sh.getLastColumn() + 1).setValue(col); head.push(col); }
+  });
+  var iAnu = head.indexOf('Anulado'), iVue = head.indexOf('VuelveAlBolillero'), iCua = head.indexOf('AnuladoEl');
+
+  var datos = sh.getDataRange().getValues();
+  for (var f = datos.length - 1; f >= 1; f--){          // del más nuevo al más viejo
+    if (String(datos[f][0]) !== String(g.premio)) continue;
+    if (String(datos[f][iAnu] || '').toUpperCase() === 'SI') continue;
+    sh.getRange(f + 1, iAnu + 1).setValue('SI');
+    sh.getRange(f + 1, iVue + 1).setValue(g.vuelve === false ? 'NO' : 'SI');
+    sh.getRange(f + 1, iCua + 1).setValue(new Date() + (g.por ? ' — ' + g.por : ''));
+    return {ok:true, anulado:{premio:g.premio, num:Number(datos[f][1])}};
+  }
+  return {ok:false, error:'No hay un ganador vigente para "' + g.premio + '"'};
 }
 
 // ============================================================
@@ -253,9 +293,15 @@ function leerEstado_(){
 
   // --- ganadores ---
   var gs = ss.getSheetByName(SH_GAN).getDataRange().getValues();
-  var ganadores = [];
+  var iGAnu = gs[0].indexOf('Anulado'), iGVue = gs[0].indexOf('VuelveAlBolillero');
+  var ganadores = [], excluidos = [];
   for (var j = 1; j < gs.length; j++){
     if (!gs[j][0]) continue;
+    if (iGAnu >= 0 && String(gs[j][iGAnu]).toUpperCase() === 'SI'){
+      // Ganador anulado: solo queda afuera si al re-sortear se pidió dejarlo afuera
+      if (iGVue >= 0 && String(gs[j][iGVue]).toUpperCase() === 'NO') excluidos.push(Number(gs[j][1]));
+      continue;
+    }
     ganadores.push({premio:String(gs[j][0]), num:Number(gs[j][1]), nombre:String(gs[j][2]), tel:String(gs[j][3]), vend:String(gs[j][4])});
   }
 
@@ -263,6 +309,7 @@ function leerEstado_(){
     ops: ops,
     vendedores: vendedores,
     ganadores: ganadores,
+    excluidos: excluidos,
     config: {
       nombreRifa: String(cfg.nombreRifa || 'Rifa del Club'),
       total: Number(cfg.totalNumeros) || 300,

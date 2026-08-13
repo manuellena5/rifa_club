@@ -123,6 +123,10 @@ Una vez agregada a la pantalla de inicio funciona sin internet: podés cargar ve
 
 **El sorteo saca solo entre números vendidos**, así que nunca puede salir uno vacío. Un número que ya ganó no entra en el premio siguiente. Los ganadores se guardan en la planilla.
 
+**Se puede volver a sortear un premio.** Cada ganador de la lista tiene su botón *Volver a sortear*. Al confirmar te pregunta si el número que había ganado vuelve al bolillero o queda afuera de todos los premios — lo primero sirve cuando sorteaste por error, lo segundo cuando el ganador no correspondía. Hace falta internet: el ganador se anula en la planilla antes de tocar nada en el celular, así dos personas no pueden re-sortear el mismo premio a la vez.
+
+La fila del ganador anulado **no se borra**: queda en la hoja Ganadores con `Anulado = SI`, y la columna `VuelveAlBolillero` dice si ese número sigue participando. Si te arrepentiste de dejar un número afuera, cambiá esa celda a `SI` y actualizá desde la app.
+
 **Consumo de Apps Script:** una llamada por venta cargada, más una al abrir la app. Con 5 vendedores y 300 números no llegás ni cerca del límite diario.
 
 ---

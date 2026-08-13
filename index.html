@@ -70,6 +70,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:12px 0 5px}
 .selbar.show{display:block}
 table{width:100%;border-collapse:collapse;font-size:13px}
 td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
+td+td,th+th{text-align:right;white-space:nowrap}
 th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
 .warn{background:#78350f;border:1px solid var(--pend);color:#fde68a;border-radius:10px;padding:10px;font-size:13px;margin:10px 0}
 .info{background:#312e81;border:1px solid #6366f1;color:#e0e7ff;border-radius:10px;padding:10px;font-size:12px;margin-bottom:12px}
@@ -158,13 +159,15 @@ input.bad{border-color:var(--bad)}
     </div>
     <div class="card"><b>Por vendedor</b><table id="tVend"></table></div>
     <div class="card"><b>Por forma de pago</b><table id="tPago"></table></div>
-    <div class="card"><b>Compras por cantidad</b><table id="tCant"></table></div>
+    <div class="card"><b>Compras por cantidad</b>
+      <div class="mut" style="margin:4px 0 6px">Cuánta gente compró de a uno, de a dos, etc. <b>Nº</b> son números, no compras.</div>
+      <table id="tCant"></table></div>
   </section>
 
   <!-- SORTEO -->
   <section class="panel" id="p-sort">
     <div class="card">
-      <div class="mut">Participan solo los números vendidos</div>
+      <div class="mut" id="sPartTxt">Participan solo los números vendidos</div>
       <div class="big" id="sPart">0</div>
       <div class="bola" id="bola">—</div>
       <div id="sGanador" style="text-align:center;min-height:44px"></div>
@@ -173,6 +176,13 @@ input.bad{border-color:var(--bad)}
       <button class="btn" onclick="sortear()" style="margin-top:12px" id="btnSortear">Sortear</button>
       <div class="mut" style="margin-top:8px">Antes de sortear conviene apretar el ícono de estado (arriba a la derecha) para bajar las últimas ventas de todos.</div>
     </div>
+    <div class="card" id="cardExcl" style="display:none">
+      <b>Fuera del bolillero</b>
+      <div class="mut" style="margin:6px 0 8px">Números que ganaron y se re-sortearon dejándolos afuera. No entran en ningún premio.</div>
+      <div id="listaExcl"></div>
+      <div class="mut" style="margin-top:8px">Para que vuelvan a participar, poné <b>SI</b> en la columna <b>VuelveAlBolillero</b> de la hoja Ganadores y actualizá.</div>
+    </div>
+
     <div class="card">
       <b>Ganadores</b>
       <div id="listaGan" style="margin-top:8px"></div>
@@ -287,6 +297,19 @@ input.bad{border-color:var(--bad)}
   </div>
 </div>
 
+<!-- MODAL VOLVER A SORTEAR -->
+<div class="modal" id="modalRe" onclick="if(event.target===this)cerrarRe()">
+  <div class="sheet">
+    <h3 style="margin:0 0 2px">Volver a sortear</h3>
+    <div class="mut" id="reSub"></div>
+    <div id="reAlert"></div>
+    <div class="mut" style="margin:14px 0 8px">El número que había ganado, ¿qué hace?</div>
+    <button class="btn" id="reVuelve" onclick="resortear(true)">Vuelve a participar</button>
+    <button class="btn sec" id="reFuera" onclick="resortear(false)" style="margin-top:8px">Queda afuera de todos los premios</button>
+    <button class="btn sec" onclick="cerrarRe()" style="margin-top:16px">Cancelar</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIGURACIÓN — pegá acá la URL y la clave para que los
@@ -302,14 +325,15 @@ const DEF={
   vendedor:'', total:300, precios:[{c:1,p:10000},{c:2,p:15000},{c:3,p:22000}], extra:7000,
   premios:['1º Premio','2º Premio','3º Premio'], nombreRifa:'Rifa del Club', abierta:true,
   ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0,
-  msgWa:MSG_DEF, avisados:{}
+  msgWa:MSG_DEF, avisados:{}, excluidos:[]
 };
 let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(K)||'{}'));
 if(API_URL_FIJA) S.url=API_URL_FIJA;
 if(TOKEN_FIJO)   S.token=TOKEN_FIJO;
-if(!S.avisados) S.avisados={};
-if(!S.msgWa)    S.msgWa=MSG_DEF;
-let ultimaVenta=null;
+if(!S.avisados)  S.avisados={};
+if(!S.msgWa)     S.msgWa=MSG_DEF;
+if(!S.excluidos) S.excluidos=[];
+let ultimaVenta=null, rePremio=null;
 const save=()=>localStorage.setItem(K,JSON.stringify(S));
 
 const $=id=>document.getElementById(id);
@@ -436,6 +460,7 @@ function aplicarEstado(est){
   S.ops=(est.ops||[]).map(o=>({...o,sync:true}));
   pendientes.forEach(p=>{ if(!S.ops.find(o=>o.id===p.id)) S.ops.push(p); });
   S.ganadores=est.ganadores||[];
+  S.excluidos=est.excluidos||[];
   S.vendedores=est.vendedores||[];
   if(est.config){
     S.total=est.config.total||S.total;
@@ -560,22 +585,32 @@ function render(){
   const dt=S.ops.reduce((a,o)=>a+adeudado(o),0);
   $('rDebe').textContent=dt?'+ '+plata(dt)+' a cobrar':'';
   $('rBar').style.width=(v/S.total*100)+'%';
-  const agr=f=>{const m={};S.ops.forEach(o=>{const k=f(o);m[k]=m[k]||{n:0,$:0};m[k].n+=o.nums.length;m[k].$+=cobrado(o);});return m;};
-  const tab=(m,el,h1)=>$(el).innerHTML=`<tr><th>${h1}</th><th>Nº</th><th>Cobrado</th></tr>`+
-    Object.entries(m).sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>`<tr><td>${esc(k)}</td><td>${x.n}</td><td>${plata(x.$)}</td></tr>`).join('');
-  tab(agr(o=>o.vend||'sin vendedor'),'tVend','Vendedor');
-  tab(agr(o=>o.pago),'tPago','Pago');
-  tab(agr(o=>o.nums.length+(o.nums.length===1?' número':' números')),'tCant','Compra');
+  // c = cantidad de operaciones (ventas), n = cantidad de números, $ = cobrado
+  const agr=f=>{const m={};S.ops.forEach(o=>{const k=f(o);m[k]=m[k]||{c:0,n:0,$:0};m[k].c++;m[k].n+=o.nums.length;m[k].$+=cobrado(o);});return m;};
+  const tab=(m,el,h1,h2)=>$(el).innerHTML=`<tr><th>${h1}</th><th>${h2}</th><th>Nº</th><th>Cobrado</th></tr>`+
+    Object.entries(m).sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>
+      `<tr><td>${esc(k)}</td><td>${x.c}</td><td>${x.n}</td><td>${plata(x.$)}</td></tr>`).join('');
+  tab(agr(o=>o.vend||'sin vendedor'),'tVend','Vendedor','Ventas');
+  tab(agr(o=>o.pago),'tPago','Pago','Ventas');
+  tab(agr(o=>o.nums.length+(o.nums.length===1?' número':' números')),'tCant','Llevaron','Compras');
 
   // sorteo
-  $('sPart').textContent=v;
+  const urna=bolillero();
+  $('sPart').textContent=urna.length;
+  const afuera=v-urna.length;
+  $('sPartTxt').textContent=afuera
+    ? 'Participan '+urna.length+' de los '+v+' vendidos ('+afuera+' ya salieron o quedaron afuera)'
+    : 'Participan solo los números vendidos';
   $('selPremio').innerHTML=S.premios.map((p,i)=>{
     const ya=S.ganadores.find(g=>g.premio===p);
     return `<option value="${i}"${ya?' disabled':''}>${esc(p)}${ya?' (ya sorteado)':''}</option>`;
   }).join('');
-  $('listaGan').innerHTML=S.ganadores.length? S.ganadores.map(g=>`
+  $('cardExcl').style.display=S.excluidos.length?'block':'none';
+  $('listaExcl').innerHTML=[...S.excluidos].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('');
+  $('listaGan').innerHTML=S.ganadores.length? S.ganadores.map((g,i)=>`
     <div class="card" style="margin:0 0 6px"><b>${esc(g.premio)}</b> — Nº ${g.num}
-    <div class="mut">${esc(g.nombre)} · ${esc(g.tel||'sin teléfono')} · vendido por ${esc(g.vend)}</div></div>`).join('')
+    <div class="mut">${esc(g.nombre)} · ${esc(g.tel||'sin teléfono')} · vendido por ${esc(g.vend)}</div>
+    <button class="btn sec sm" style="margin-top:8px" onclick="abrirRe(${i})">Volver a sortear</button></div>`).join('')
     : '<div class="mut">Todavía no se sorteó ningún premio.</div>';
 
   // ajustes
@@ -734,23 +769,31 @@ async function anular(){
 // SORTEO
 // ============================================================
 let girando=false;
+
+// Números que efectivamente participan: los vendidos, menos los que ya
+// ganaron un premio vigente, menos los excluidos a mano al re-sortear.
+function bolillero(){
+  const fuera=new Set([...S.ganadores.map(g=>g.num), ...S.excluidos]);
+  const b=[];
+  S.ops.forEach(o=>o.nums.forEach(n=>{ if(!fuera.has(n)) b.push({num:n,op:o}); }));
+  return b;
+}
+
 function sortear(){
   if(girando) return;
   const premio=S.premios[+$('selPremio').value];
   if(!premio) return alert('No hay premios configurados.');
-  if(S.ganadores.find(g=>g.premio===premio)) return alert('Ese premio ya fue sorteado.');
+  if(S.ganadores.find(g=>g.premio===premio)) return alert('Ese premio ya fue sorteado.\n\nSi lo querés repetir, usá "Volver a sortear" en la lista de ganadores.');
   if(pend().length && !confirm('Hay '+pend().length+' venta(s) sin subir. ¿Sortear igual?')) return;
 
-  const yaGanaron=S.ganadores.map(g=>g.num);
-  const bolillero=[];
-  S.ops.forEach(o=>o.nums.forEach(n=>{ if(!yaGanaron.includes(n)) bolillero.push({num:n,op:o}); }));
-  if(!bolillero.length) return alert('No hay números vendidos disponibles.');
+  const urna=bolillero();
+  if(!urna.length) return alert('No hay números disponibles para sortear.');
 
   girando=true; $('btnSortear').disabled=true; $('sGanador').innerHTML='';
-  const g=bolillero[Math.floor(Math.random()*bolillero.length)];
+  const g=urna[Math.floor(Math.random()*urna.length)];
   let t=0;
   const iv=setInterval(async()=>{
-    $('bola').textContent=bolillero[Math.floor(Math.random()*bolillero.length)].num;
+    $('bola').textContent=urna[Math.floor(Math.random()*urna.length)].num;
     t+=70;
     if(t>2600){
       clearInterval(iv); girando=false; $('btnSortear').disabled=false;
@@ -765,6 +808,44 @@ function sortear(){
       }
     }
   },70);
+}
+
+// ============================================================
+// VOLVER A SORTEAR
+// ============================================================
+function abrirRe(i){
+  const g=S.ganadores[i]; if(!g) return;
+  rePremio=g.premio;
+  $('reSub').innerHTML=`Le vas a sacar el <b>${esc(g.premio)}</b> al Nº ${g.num} — ${esc(g.nombre)}`+
+    (g.vend?` <span class="mut">(lo vendió ${esc(g.vend)})</span>`:'');
+  $('reAlert').innerHTML = (conectado() && !navigator.onLine)
+    ? '<div class="warn">Sin internet no se puede anular un ganador. Conectate y volvé a intentar.</div>'
+    : '<div class="warn">El ganador actual queda anulado. La fila no se borra de la planilla: queda registrada para que se pueda auditar.</div>';
+  const trabado = conectado() && !navigator.onLine;
+  $('reVuelve').disabled=trabado; $('reFuera').disabled=trabado;
+  $('modalRe').classList.add('show');
+}
+function cerrarRe(){ $('modalRe').classList.remove('show'); rePremio=null; }
+
+async function resortear(vuelve){
+  const premio=rePremio;
+  const g=S.ganadores.find(x=>x.premio===premio);
+  if(!g) return cerrarRe();
+  if(conectado() && !navigator.onLine) return alert('Sin internet no se puede anular un ganador.');
+
+  // Primero la planilla: si falla, no tocamos nada en el celular
+  if(conectado()){
+    try{ await llamar({action:'anularGanador', ganador:{premio, vuelve, por:S.vendedor}}); }
+    catch(e){ return alert('No se pudo anular en la planilla: '+e.message+'\n\nNo se cambió nada. Probá de nuevo.'); }
+  } else {
+    S.ganadores=S.ganadores.filter(x=>x.premio!==premio);
+    if(!vuelve && !S.excluidos.includes(g.num)) S.excluidos.push(g.num);
+    save();
+  }
+
+  cerrarRe(); render();
+  alert('Listo, el '+premio+' quedó libre.\n\n'+
+    (vuelve ? 'El Nº '+g.num+' vuelve al bolillero.' : 'El Nº '+g.num+' queda afuera de todos los premios.'));
 }
 
 // ============================================================
