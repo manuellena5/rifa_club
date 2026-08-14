@@ -130,6 +130,8 @@ Una vez agregada a la pantalla de inicio funciona sin internet: podés cargar ve
 
 **El teléfono se acomoda solo.** El vendedor lo escribe como se lo dicten — `0342 15 512-3456`, `+54 342...`, `3425123456` — y la app lo convierte a formato internacional. Debajo del campo se ve en vivo a qué número va a llegar. Si no da un móvil argentino válido, la venta se guarda igual pero queda marcada como *sin WhatsApp* en Mis ventas. Lo que se guarda en la planilla ya va normalizado.
 
+**La imagen para compartir** se genera en el celular del vendedor (pestaña Resumen → Generar imagen). Dibuja los 350 números con los vendidos tachados y estampa la fecha y hora arriba de todo, así nadie confunde una captura vieja con el estado actual. Cuenta como vendido cualquier número que esté en una venta, esté cobrado o en `Debe`: mostrar libre algo ya apalabrado es la forma más rápida de vender dos veces el mismo número. En Android e iPhone abre el selector de compartir de WhatsApp; en la computadora descarga el PNG.
+
 **El sorteo saca solo entre números vendidos**, así que nunca puede salir uno vacío. Un número que ya ganó no entra en el premio siguiente. Los ganadores se guardan en la planilla.
 
 **Se puede volver a sortear un premio.** Cada ganador de la lista tiene su botón *Volver a sortear*. Al confirmar te pregunta si el número que había ganado vuelve al bolillero o queda afuera de todos los premios — lo primero sirve cuando sorteaste por error, lo segundo cuando el ganador no correspondía. Hace falta internet: el ganador se anula en la planilla antes de tocar nada en el celular, así dos personas no pueden re-sortear el mismo premio a la vez.

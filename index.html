@@ -167,6 +167,13 @@ input.bad{border-color:var(--bad)}
     <div class="card"><b>Compras por cantidad</b>
       <div class="mut" style="margin:4px 0 6px">Cuánta gente compró de a uno, de a dos, etc. <b>Nº</b> son números, no compras.</div>
       <table id="tCant"></table></div>
+
+    <div class="card">
+      <b>Imagen para compartir</b>
+      <div class="mut" style="margin:6px 0 10px">Una foto de cómo está la rifa ahora, con los vendidos tachados y la fecha y hora. Para mandar a los grupos o al estado de WhatsApp.</div>
+      <button class="btn" onclick="compartirImagen()">Generar imagen</button>
+      <div class="mut" id="imgAviso" style="margin-top:8px"></div>
+    </div>
   </section>
 
   <!-- SORTEO -->
@@ -891,6 +898,123 @@ function editPrecio(i,k,v){ const L=[...S.precios].sort((a,b)=>a.c-b.c); L[i][k]
 function delPrecio(i){ const L=[...S.precios].sort((a,b)=>a.c-b.c); L.splice(i,1); S.precios=L; save(); render(); }
 function addPrecio(){ const L=[...S.precios].sort((a,b)=>a.c-b.c); const c=(L.length?L[L.length-1].c:0)+1; S.precios=[...L,{c,p:calc(c)}]; save(); render(); }
 function reset(){ if(confirm('Borra los datos de ESTE celular y los vuelve a bajar de la planilla. Lo que no hayas subido se pierde.')){ localStorage.removeItem(K); location.reload(); } }
+
+// ============================================================
+// IMAGEN PARA COMPARTIR
+// Dibuja los números en un canvas y lo manda como PNG. Cuenta como vendido
+// cualquier número que esté en una venta, cobrada o en "Debe": si figura
+// libre algo que ya está apalabrado, se lo vende otro y quedamos mal.
+// ============================================================
+function dibujarImagen(){
+  const total=S.total;
+  const cols = total<=100 ? 10 : total<=200 ? 12 : 14;
+  const filas=Math.ceil(total/cols);
+  const M=44, GAP=8, CW=64, CH=54;
+  const W=M*2+cols*CW+(cols-1)*GAP;
+  const HEAD=250, FOOT=132;
+  const H=HEAD+filas*(CH+GAP)-GAP+FOOT;
+
+  const cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  // Safari viejo no tiene roundRect
+  if(!c.roundRect) c.roundRect=function(x,y,w,h,r){
+    this.moveTo(x+r,y);
+    this.arcTo(x+w,y,x+w,y+h,r); this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r);     this.arcTo(x,y,x+w,y,r);
+    this.closePath();
+  };
+  const fuente=(px,peso)=>`${peso||400} ${px}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+
+  c.fillStyle='#ffffff'; c.fillRect(0,0,W,H);
+
+  // encabezado
+  c.fillStyle='#0f172a'; c.fillRect(0,0,W,HEAD-34);
+  c.fillStyle='#ffffff'; c.font=fuente(40,700); c.textBaseline='alphabetic';
+  c.fillText(S.nombreRifa, M, 74);
+
+  const libres=total-vendidos();
+  c.fillStyle='#4ade80'; c.font=fuente(62,800);
+  c.fillText(String(libres), M, 152);
+  const anchoNum=c.measureText(String(libres)).width;
+  c.fillStyle='#cbd5e1'; c.font=fuente(28,400);
+  c.fillText('números libres de '+total, M+anchoNum+14, 152);
+
+  // leyenda
+  let lx=M;
+  [['#dcfce7','#16a34a','libre'],['#e2e8f0','#94a3b8','vendido']].forEach(([f,b,t])=>{
+    c.fillStyle=f; c.strokeStyle=b; c.lineWidth=2;
+    c.beginPath(); c.roundRect(lx,172,22,22,5); c.fill(); c.stroke();
+    c.fillStyle='#e2e8f0'; c.font=fuente(24,400);
+    c.fillText(t, lx+32, 190);
+    lx+=32+c.measureText(t).width+28;
+  });
+
+  // grilla
+  for(let i=1;i<=total;i++){
+    const idx=i-1;
+    const x=M+(idx%cols)*(CW+GAP);
+    const y=HEAD+Math.floor(idx/cols)*(CH+GAP);
+    const vendido=!!opDe(i);
+
+    c.fillStyle   = vendido?'#eef2f6':'#dcfce7';
+    c.strokeStyle = vendido?'#dbe2ea':'#16a34a';
+    c.lineWidth   = vendido?1.5:2;
+    c.beginPath(); c.roundRect(x,y,CW,CH,9); c.fill(); c.stroke();
+
+    c.fillStyle = vendido?'#a8b3c1':'#14532d';
+    c.font=fuente(vendido?24:26, vendido?400:700);
+    c.textAlign='center'; c.textBaseline='middle';
+    c.fillText(String(i), x+CW/2, y+CH/2+1);
+    c.textAlign='left'; c.textBaseline='alphabetic';
+
+    if(vendido){
+      c.strokeStyle='#94a3b8'; c.lineWidth=2.5;
+      c.beginPath(); c.moveTo(x+9,y+CH/2); c.lineTo(x+CW-9,y+CH/2); c.stroke();
+    }
+  }
+
+  // pie
+  const py=H-FOOT+28;
+  c.strokeStyle='#e2e8f0'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(M,py-14); c.lineTo(W-M,py-14); c.stroke();
+
+  const d=new Date();
+  const dd=n=>String(n).padStart(2,'0');
+  const cuando=dd(d.getDate())+'/'+dd(d.getMonth()+1)+'/'+d.getFullYear()+' a las '+dd(d.getHours())+':'+dd(d.getMinutes());
+  c.fillStyle='#0f172a'; c.font=fuente(26,700);
+  c.fillText('Actualizado el '+cuando, M, py+22);
+  c.fillStyle='#64748b'; c.font=fuente(23,400);
+  c.fillText('Pueden quedar ventas sin registrar. Consultá con tu vendedor antes de pagar.', M, py+60);
+
+  return cv;
+}
+
+function compartirImagen(){
+  const av=$('imgAviso');
+  av.textContent='Generando…';
+  try{
+    const cv=dibujarImagen();
+    const nombre='rifa-'+new Date().toISOString().slice(0,16).replace(/[-T:]/g,'')+'.png';
+    cv.toBlob(async blob=>{
+      if(!blob){ av.textContent='No se pudo generar la imagen.'; return; }
+      const file=new File([blob],nombre,{type:'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({files:[file], title:S.nombreRifa});
+          av.textContent='Listo.';
+        }catch(e){ av.textContent=''; }
+      }else{
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob); a.download=nombre; a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+        av.textContent='Imagen descargada. Adjuntala desde la galería.';
+      }
+    },'image/png');
+  }catch(e){
+    av.textContent='No se pudo generar: '+e.message;
+  }
+}
 
 function compartir(){
   const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(a.nums[0]||9e9)-(b.nums[0]||9e9));
