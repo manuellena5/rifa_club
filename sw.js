@@ -1,6 +1,6 @@
 // Rifa del Club — Service Worker
 // Subir SW_VERSION en CADA cambio de index.html, manifest.json o este archivo.
-const SW_VERSION = '1.9.0';
+const SW_VERSION = '1.9.1';
 const CACHE = 'rifa-' + SW_VERSION;
 
 const ARCHIVOS = [

@@ -714,8 +714,8 @@ function render(){
   $('sbNums').textContent=arr.length? arr.length+(arr.length===1?' número: ':' números: ')+arr.join(', ') : 'Ningún número elegido';
   $('sbMonto').textContent=plata(calc(arr.length));
 
-  // mis ventas
-  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(a.nums[0]||9e9)-(b.nums[0]||9e9));
+  // mis ventas — la última cargada primero, que es la que uno viene a mirar
+  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(b.ts||0)-(a.ts||0));
   $('mCant').textContent=mias.reduce((a,o)=>a+o.nums.length,0);
   $('mPlata').textContent=plata(mias.reduce((a,o)=>a+cobrado(o),0));
   const dm=mias.reduce((a,o)=>a+adeudado(o),0);
