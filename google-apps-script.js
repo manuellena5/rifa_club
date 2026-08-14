@@ -27,10 +27,17 @@ var COLS_GAN    = ['Premio','Numero','Nombre','Telefono','Vendedor','Fecha','Anu
 // Comodines disponibles: {nombre} {numeros} {cantidad} {monto} {rifa}
 //                        {vendedor} {pago} {premios}
 // Para cortar renglón escribí  \n  (barra invertida + n), no Alt+Enter.
+// Cuando la persona lleva MÁS DE UN número:
 var MSG_WA_DEF = 'Hola {nombre}! Gracias por colaborar con la {rifa}.\\n' +
                  'Tus números son: {numeros}\\n' +
                  'Total: {monto} ({pago})\\n' +
                  'Te los vendió {vendedor}. ¡Mucha suerte!';
+
+// Cuando lleva UNO SOLO (se usa este y no el de arriba):
+var MSG_WA_1_DEF = 'Hola {nombre}! Gracias por colaborar con la {rifa}.\\n' +
+                   'Tu número es el {numeros}\\n' +
+                   'Total: {monto} ({pago})\\n' +
+                   'Te lo vendió {vendedor}. ¡Mucha suerte!';
 
 var CONFIG_DEF = [
   ['nombreRifa','Rifa Club Mitre','Título que se ve arriba en la app'],
@@ -40,7 +47,8 @@ var CONFIG_DEF = [
   ['premios','1º Premio | 2º Premio | 3º Premio','Separados por barra vertical'],
   ['token','cambiar-esta-clave','Clave compartida. Cambiala y pasásela solo a los vendedores'],
   ['ventaAbierta','SI','Poné NO para cerrar la carga antes del sorteo'],
-  ['msgWhatsapp', MSG_WA_DEF, 'Comprobante que se le manda al comprador. Comodines: {nombre} {numeros} {cantidad} {monto} {rifa} {vendedor} {pago} {premios}. Usá \\n para cortar renglón']
+  ['msgWhatsapp', MSG_WA_DEF, 'Comprobante cuando lleva VARIOS números. Comodines: {nombre} {numeros} {cantidad} {monto} {rifa} {vendedor} {pago} {premios}. Usá \\n para cortar renglón'],
+  ['msgWhatsapp1', MSG_WA_1_DEF, 'Comprobante cuando lleva UN SOLO número (redactado en singular). Mismos comodines']
 ];
 
 // ============================================================
@@ -317,7 +325,8 @@ function leerEstado_(){
       extra: Number(cfg.precioExtra) || 0,
       premios: String(cfg.premios || '').split('|').map(function(x){ return x.trim(); }).filter(String),
       abierta: String(cfg.ventaAbierta || 'SI').toUpperCase() !== 'NO',
-      msgWa: String(cfg.msgWhatsapp || MSG_WA_DEF)
+      msgWa: String(cfg.msgWhatsapp || MSG_WA_DEF),
+      msgWa1: String(cfg.msgWhatsapp1 || MSG_WA_1_DEF)
     },
     servidor: new Date().getTime()
   };

@@ -33,23 +33,32 @@ Funciona sin internet: cada uno carga y se sube solo cuando vuelve la señal.
 | `premios` | `1º Premio \| 2º Premio \| 3º Premio` | Separados por barra |
 | `token` | (poné una clave tuya) | Sin esto cualquiera que tenga el link podría escribir |
 | `ventaAbierta` | SI | Poné `NO` el día del sorteo y nadie puede cargar más |
-| `msgWhatsapp` | (ver abajo) | El comprobante que se le manda al comprador |
+| `msgWhatsapp` | (ver abajo) | Comprobante cuando lleva **varios** números |
+| `msgWhatsapp1` | (ver abajo) | Comprobante cuando lleva **uno solo**, en singular |
 
 Todo esto lo cambiás en la planilla y los vendedores lo reciben solos. No hay que tocar código.
 
 ### El comprobante por WhatsApp
 
-`msgWhatsapp` es el texto que el vendedor le manda al comprador después de cargar la venta. Acepta estos comodines:
+Es el texto que el vendedor le manda al comprador después de cargar la venta. **Hay dos plantillas** y la app elige sola cuál usar: `msgWhatsapp1` si la persona llevó un solo número, `msgWhatsapp` si llevó varios. Así el mensaje queda bien redactado en los dos casos y no aparece un "Tus números son: 2" que se lee como si fueran dos.
+
+Ambas aceptan los mismos comodines:
 
 `{nombre}` `{numeros}` `{cantidad}` `{monto}` `{rifa}` `{vendedor}` `{pago}` `{premios}`
 
-Para cortar renglón escribí `\n` (barra invertida y ene), **no** Alt+Enter. Por defecto queda:
+Para cortar renglón escribí `\n` (barra invertida y ene), **no** Alt+Enter. Por defecto quedan:
 
 ```
+msgWhatsapp1 (un solo número)
+Hola {nombre}! Gracias por colaborar con la {rifa}.\nTu número es el {numeros}\nTotal: {monto} ({pago})\nTe lo vendió {vendedor}. ¡Mucha suerte!
+
+msgWhatsapp (varios números)
 Hola {nombre}! Gracias por colaborar con la {rifa}.\nTus números son: {numeros}\nTotal: {monto} ({pago})\nTe los vendió {vendedor}. ¡Mucha suerte!
 ```
 
-> Si ya tenías la planilla creada de antes, corré **Rifa → Crear / reparar hojas**: agrega `msgWhatsapp` sin tocar el resto de lo que cargaste.
+`{numeros}` se arma en castellano: con uno queda `47`, con varios `12, 13 y 47`.
+
+> Si ya tenías la planilla creada de antes, corré **Rifa → Crear / reparar hojas**: agrega las claves que falten sin tocar el resto de lo que cargaste.
 
 ---
 

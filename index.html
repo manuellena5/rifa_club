@@ -325,18 +325,20 @@ const TOKEN_FIJO   = '0001';   //
 
 // ============================================================
 const K='rifa_v5';
-const MSG_DEF='Hola {nombre}! Gracias por colaborar con la {rifa}.\nTus números son: {numeros}\nTotal: {monto} ({pago})\nTe los vendió {vendedor}. ¡Mucha suerte!';
+const MSG_DEF ='Hola {nombre}! Gracias por colaborar con la {rifa}.\nTus números son: {numeros}\nTotal: {monto} ({pago})\nTe los vendió {vendedor}. ¡Mucha suerte!';
+const MSG_DEF1='Hola {nombre}! Gracias por colaborar con la {rifa}.\nTu número es el {numeros}\nTotal: {monto} ({pago})\nTe lo vendió {vendedor}. ¡Mucha suerte!';
 const DEF={
   vendedor:'', total:300, precios:[{c:1,p:10000},{c:2,p:15000},{c:3,p:22000}], extra:7000,
   premios:['1º Premio','2º Premio','3º Premio'], nombreRifa:'Rifa del Club', abierta:true,
   ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0,
-  msgWa:MSG_DEF, avisados:{}, excluidos:[]
+  msgWa:MSG_DEF, msgWa1:MSG_DEF1, avisados:{}, excluidos:[]
 };
 let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(K)||'{}'));
 if(API_URL_FIJA) S.url=API_URL_FIJA;
 if(TOKEN_FIJO)   S.token=TOKEN_FIJO;
 if(!S.avisados)  S.avisados={};
 if(!S.msgWa)     S.msgWa=MSG_DEF;
+if(!S.msgWa1)    S.msgWa1=MSG_DEF1;
 if(!S.excluidos) S.excluidos=[];
 let ultimaVenta=null, rePremio=null;
 const save=()=>localStorage.setItem(K,JSON.stringify(S));
@@ -404,10 +406,17 @@ function telNorm(raw){
 }
 
 // Arma el mensaje según la plantilla de la hoja Config
+function listaNums(nums){
+  const a=[...nums].sort((x,y)=>x-y);
+  if(a.length<=1) return a.join('');
+  return a.slice(0,-1).join(', ')+' y '+a[a.length-1];
+}
+
 function msgVenta(o){
+  const uno = o.nums.length===1;
   const vals={
     nombre:   o.nombre||'',
-    numeros:  [...o.nums].sort((a,b)=>a-b).join(', '),
+    numeros:  listaNums(o.nums),
     cantidad: o.nums.length,
     monto:    plata(o.monto),
     rifa:     S.nombreRifa,
@@ -415,7 +424,8 @@ function msgVenta(o){
     pago:     o.pago||'',
     premios:  S.premios.join(' · ')
   };
-  return String(S.msgWa||MSG_DEF)
+  const plantilla = uno ? (S.msgWa1||MSG_DEF1) : (S.msgWa||MSG_DEF);
+  return String(plantilla)
     .replace(/\\n/g,'\n')
     .replace(/\{(\w+)\}/g,(m,k)=> k in vals ? vals[k] : m);
 }
@@ -474,7 +484,8 @@ function aplicarEstado(est){
     if(est.config.premios&&est.config.premios.length) S.premios=est.config.premios;
     S.nombreRifa=est.config.nombreRifa||S.nombreRifa;
     S.abierta=est.config.abierta!==false;
-    if(est.config.msgWa) S.msgWa=est.config.msgWa;
+    if(est.config.msgWa)  S.msgWa =est.config.msgWa;
+    if(est.config.msgWa1) S.msgWa1=est.config.msgWa1;
   }
   S.ultSync=Date.now();
   save(); render();
