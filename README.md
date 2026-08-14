@@ -126,6 +126,8 @@ Una vez agregada a la pantalla de inicio funciona sin internet: podés cargar ve
 
 **Nada se borra.** Anular una venta escribe `SI` en la columna Anulado; la fila queda para auditar.
 
+**La columna Números se escribe con un apóstrofo adelante.** No se ve en la celda, pero es la única forma en que Sheets promete no reinterpretar el contenido: sin eso, `148` lo guarda como número y `1, 3, 225` puede terminar convertido en cualquier cosa. Al leer, una celda numérica entera y dentro del rango de la rifa se toma como una venta de un solo número; una fecha, un decimal o un valor fuera de rango se marcan como fila rota en vez de adivinar. Además, cada sincronización reescribe las celdas que encuentre mal guardadas, así que la hoja se va limpiando sola a medida que el grupo vende. El menú **Rifa → Revisar columna Números** queda como último recurso.
+
 **El WhatsApp se manda desde el celular del vendedor, no desde un servidor.** Al guardar una venta aparece un botón que abre WhatsApp con el chat del comprador y el mensaje ya escrito; el vendedor solo aprieta enviar. No hay costo, no hay API de Meta, no hay número del club. La contra es que siempre hace falta ese toque: no se puede mandar solo.
 
 **El teléfono se acomoda solo.** El vendedor lo escribe como se lo dicten — `0342 15 512-3456`, `+54 342...`, `3425123456` — y la app lo convierte a formato internacional. Debajo del campo se ve en vivo a qué número va a llegar. Si no da un móvil argentino válido, la venta se guarda igual pero queda marcada como *sin WhatsApp* en Mis ventas. Lo que se guarda en la planilla ya va normalizado.

@@ -166,18 +166,32 @@ function pushVentas_(ops){
   var head = datos[0];
   var iID = head.indexOf('ID'), iNum = head.indexOf('Numeros'), iAnu = head.indexOf('Anulado');
 
-  // La columna Numeros SIEMPRE en formato texto: si no, Sheets interpreta
-  // "1, 3, 225" como número o fecha y se pierden los números de esa venta.
+  // La columna Numeros SIEMPRE en formato texto
   sh.getRange(1, iNum + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+
+  var total = totalNumeros_();
 
   // índice de número -> {id, vendedor, nombre}
   var ocupados = {};
   var filaDe = {};
+  var normalizadas = 0;
   for (var f = 1; f < datos.length; f++){
     var id = String(datos[f][iID]);
+    if (!id) continue;
     filaDe[id] = f + 1;
     if (String(datos[f][iAnu]).toUpperCase() === 'SI') continue;
-    numsDeCelda_(disp[f][iNum], datos[f][iNum]).forEach(function(n){
+
+    var nn = numsDeCelda_(disp[f][iNum], datos[f][iNum], total);
+
+    // Auto-reparación: si la celda no está guardada como texto plano, se
+    // reescribe con apóstrofo. Sale gratis porque ya estamos recorriendo la
+    // hoja con el lock tomado, y así se va limpiando sola en cada venta.
+    if (nn.length && String(disp[f][iNum]).trim() !== nn.join(', ')){
+      sh.getRange(f + 1, iNum + 1).setValue(textoNums_(nn));
+      normalizadas++;
+    }
+
+    nn.forEach(function(n){
       ocupados[String(n)] = {id:id, vendedor:datos[f][head.indexOf('Vendedor')], nombre:datos[f][head.indexOf('Nombre')]};
     });
   }
@@ -185,17 +199,18 @@ function pushVentas_(ops){
   var conflictos = [], nuevas = 0;
 
   ops.forEach(function(o){
-    var nums = (o.nums || []).map(function(n){ return String(n).trim(); });
+    var nums = (o.nums || []).map(function(n){ return parseInt(n, 10); })
+                             .filter(function(n){ return n > 0; });
 
     nums.forEach(function(n){
-      var ya = ocupados[n];
+      var ya = ocupados[String(n)];
       if (ya && ya.id !== String(o.id)){
-        conflictos.push({numero: Number(n), vendedor: ya.vendedor, nombre: ya.nombre});
+        conflictos.push({numero: n, vendedor: ya.vendedor, nombre: ya.nombre});
       }
     });
 
     var fila = [
-      o.id, nums.join(', '), o.nombre || '', o.tel || '', o.pago || '',
+      o.id, textoNums_(nums), o.nombre || '', o.tel || '', o.pago || '',
       Number(o.monto) || 0, o.vend || '', o.ts ? new Date(o.ts) : new Date(), ''
     ];
 
@@ -207,10 +222,10 @@ function pushVentas_(ops){
       filaDe[String(o.id)] = sh.getLastRow();
       nuevas++;
     }
-    nums.forEach(function(n){ ocupados[n] = {id:String(o.id), vendedor:o.vend, nombre:o.nombre}; });
+    nums.forEach(function(n){ ocupados[String(n)] = {id:String(o.id), vendedor:o.vend, nombre:o.nombre}; });
   });
 
-  return {ok:true, guardadas: ops.length, nuevas: nuevas, conflictos: conflictos};
+  return {ok:true, guardadas: ops.length, nuevas: nuevas, conflictos: conflictos, normalizadas: normalizadas};
 }
 
 function anular_(id){
@@ -273,25 +288,44 @@ function anularGanador_(g){
 
 /**
  * Saca la lista de números de la celda "Numeros".
- * Usa el texto que se VE en la celda, no el valor interno: si Sheets
- * malinterpretó "1, 3, 225" y lo guardó como número o como fecha, el valor
- * interno ya no sirve, y devolver [] a medias sería peor que avisar.
+ *
+ * Sheets convierte lo que se escribe: "8, 19, 25" queda como texto, pero
+ * "148" lo guarda como el NÚMERO 148. Las dos son ventas válidas y hay que
+ * leer las dos igual. Lo que sí no se puede reconstruir es una celda que
+ * quedó como fecha o como un número que no puede ser de esta rifa: ahí se
+ * devuelve vacío para que la app lo marque en vez de inventar.
  */
-function numsDeCelda_(display, raw){
-  // Si Sheets lo convirtió en fecha o número, no se puede reconstruir: mejor vacío
+function numsDeCelda_(display, raw, total){
+  var max = total || 100000;
+
   if (raw instanceof Date) return [];
-  if (typeof raw === 'number') return [];
+
+  // Venta de un solo número: Sheets la guarda como número y está perfecta
+  if (typeof raw === 'number'){
+    return (raw > 0 && raw === Math.floor(raw) && raw <= max) ? [raw] : [];
+  }
 
   var txt = String(display == null || display === '' ? (raw || '') : display);
   var partes = txt.match(/\d+/g) || [];
   var vistos = {}, out = [];
   partes.forEach(function(p){
     var n = parseInt(p, 10);            // "0225" -> 225
-    if (!(n > 0) || vistos[n]) return;
+    if (!(n > 0) || n > max || vistos[n]) return;
     vistos[n] = true;
     out.push(n);
   });
   return out;
+}
+
+// Cuántos números tiene la rifa, para validar rangos al leer las celdas
+function totalNumeros_(){
+  return Number(cfgObj_().totalNumeros) || 100000;
+}
+
+// El apóstrofo inicial es la única forma en que Sheets promete no
+// reinterpretar el contenido. No se ve en la celda ni queda en el valor.
+function textoNums_(nums){
+  return "'" + nums.join(', ');
 }
 
 function leerEstado_(){
@@ -302,12 +336,13 @@ function leerEstado_(){
   var d = sh.getDataRange().getValues();
   var dv = sh.getDataRange().getDisplayValues();
   var h = d[0], ops = [];
+  var iN = h.indexOf('Numeros');
+  var maxNum = totalNumeros_();
   for (var f = 1; f < d.length; f++){
     if (String(d[f][h.indexOf('Anulado')]).toUpperCase() === 'SI') continue;
     if (!d[f][h.indexOf('ID')]) continue;
     var fecha = d[f][h.indexOf('Fecha')];
-    var iN = h.indexOf('Numeros');
-    var nums = numsDeCelda_(dv[f][iN], d[f][iN]);
+    var nums = numsDeCelda_(dv[f][iN], d[f][iN], maxNum);
     ops.push({
       id: String(d[f][h.indexOf('ID')]),
       nums: nums,
@@ -411,17 +446,17 @@ function repararNumeros(){
 
   sh.getRange(1, iNum + 1, sh.getMaxRows(), 1).setNumberFormat('@');
 
+  var total = totalNumeros_();
   var rotas = [], arregladas = 0;
   for (var f = 1; f < d.length; f++){
     if (!d[f][iID]) continue;
-    var nums = numsDeCelda_(dv[f][iNum], d[f][iNum]);
+    var nums = numsDeCelda_(dv[f][iNum], d[f][iNum], total);
     if (!nums.length){
       rotas.push('Fila ' + (f + 1) + '  (' + d[f][iID] + ')  →  se ve: "' + dv[f][iNum] + '"');
       continue;
     }
-    var texto = nums.join(', ');
-    if (texto !== String(dv[f][iNum]).trim()){
-      sh.getRange(f + 1, iNum + 1).setValue(texto);
+    if (nums.join(', ') !== String(dv[f][iNum]).trim()){
+      sh.getRange(f + 1, iNum + 1).setValue(textoNums_(nums));
       arregladas++;
     }
   }
