@@ -544,6 +544,10 @@ function render(){
   if(!conectado()) av='<b>Falta conectar la app.</b> Andá a Ajustes y pegá la dirección y la clave que te pasaron. Mientras tanto podés probar, pero no se comparte con nadie.';
   else if(!S.vendedor) av='<b>Elegí quién sos</b> en Ajustes antes de cargar ventas.';
   else if(!S.abierta) av='<b>La venta está cerrada.</b> Ya no se pueden cargar números.';
+  const rotas=S.ops.filter(o=>!o.nums.length);
+  if(rotas.length) av='<b>⚠ Hay '+rotas.length+' venta(s) sin números en la planilla.</b> '+
+    rotas.map(o=>esc(o.nombre)+' (fila '+(o.fila||'?')+')').join(', ')+
+    '. Esos números figuran como libres y se los puede vender otro. En la planilla: menú <b>Rifa → Revisar columna Números</b>.';
   $('aviso').innerHTML=av; $('aviso').style.display=av?'block':'none';
 
   // grilla
@@ -574,7 +578,7 @@ function render(){
   $('sbMonto').textContent=plata(calc(arr.length));
 
   // mis ventas
-  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>a.nums[0]-b.nums[0]);
+  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(a.nums[0]||9e9)-(b.nums[0]||9e9));
   $('mCant').textContent=mias.reduce((a,o)=>a+o.nums.length,0);
   $('mPlata').textContent=plata(mias.reduce((a,o)=>a+cobrado(o),0));
   const dm=mias.reduce((a,o)=>a+adeudado(o),0);
@@ -587,7 +591,9 @@ function render(){
         <div style="min-width:0">
           <b>${esc(o.nombre)}</b> <span class="mut">${esc(o.tel||'')}</span>
           ${t.ok? (av?'<span class="wachip">comprobante enviado</span>':'') : '<span class="wachip no">sin WhatsApp</span>'}
-          <div style="margin-top:4px">${[...o.nums].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('')}</div>
+          <div style="margin-top:4px">${o.nums.length
+            ? [...o.nums].sort((a,b)=>a-b).map(n=>`<span class="tag">${n}</span>`).join('')
+            : `<span class="wachip no">⚠ sin números — revisar la fila ${o.fila||''} de la planilla</span>`}</div>
           <div class="mut" style="margin-top:4px">${o.pago} · ${plata(o.monto)}${o.sync?'':' · <span style="color:#fde68a">falta subir</span>'}</div>
         </div><div class="mut">›</div>
       </div>
@@ -887,7 +893,7 @@ function addPrecio(){ const L=[...S.precios].sort((a,b)=>a.c-b.c); const c=(L.le
 function reset(){ if(confirm('Borra los datos de ESTE celular y los vuelve a bajar de la planilla. Lo que no hayas subido se pierde.')){ localStorage.removeItem(K); location.reload(); } }
 
 function compartir(){
-  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>a.nums[0]-b.nums[0]);
+  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(a.nums[0]||9e9)-(b.nums[0]||9e9));
   const t=S.nombreRifa.toUpperCase()+' — ventas de '+S.vendedor+'\n\n'+
     mias.map(o=>`${o.nums.join(', ')} — ${o.nombre} — ${o.tel} — ${o.pago} ${plata(o.monto)}`).join('\n')+
     `\n\n${mias.reduce((a,o)=>a+o.nums.length,0)} números · cobrado ${plata(mias.reduce((a,o)=>a+cobrado(o),0))}`+

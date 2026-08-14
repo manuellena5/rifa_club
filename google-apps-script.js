@@ -64,6 +64,10 @@ function crearHojas(){
     v.setFrozenRows(1);
     v.setColumnWidth(2, 200); v.setColumnWidth(3, 180);
   }
+  // Columna Numeros como texto plano, siempre. Sin esto, Sheets puede leer
+  // "1, 3, 225" como fecha o número y esa venta pierde sus números.
+  var iNumV = v.getRange(1,1,1,v.getLastColumn()).getValues()[0].indexOf('Numeros');
+  if (iNumV >= 0) v.getRange(1, iNumV + 1, v.getMaxRows(), 1).setNumberFormat('@');
 
   var c = hoja_(ss, SH_CONFIG);
   if (c.getLastRow() === 0) {
@@ -158,8 +162,13 @@ function doPost(e){
 function pushVentas_(ops){
   var sh = SpreadsheetApp.getActive().getSheetByName(SH_VENTAS);
   var datos = sh.getDataRange().getValues();
+  var disp  = sh.getDataRange().getDisplayValues();
   var head = datos[0];
   var iID = head.indexOf('ID'), iNum = head.indexOf('Numeros'), iAnu = head.indexOf('Anulado');
+
+  // La columna Numeros SIEMPRE en formato texto: si no, Sheets interpreta
+  // "1, 3, 225" como número o fecha y se pierden los números de esa venta.
+  sh.getRange(1, iNum + 1, sh.getMaxRows(), 1).setNumberFormat('@');
 
   // índice de número -> {id, vendedor, nombre}
   var ocupados = {};
@@ -168,9 +177,8 @@ function pushVentas_(ops){
     var id = String(datos[f][iID]);
     filaDe[id] = f + 1;
     if (String(datos[f][iAnu]).toUpperCase() === 'SI') continue;
-    String(datos[f][iNum]).split(',').forEach(function(n){
-      n = String(n).trim(); if (!n) return;
-      ocupados[n] = {id:id, vendedor:datos[f][head.indexOf('Vendedor')], nombre:datos[f][head.indexOf('Nombre')]};
+    numsDeCelda_(disp[f][iNum], datos[f][iNum]).forEach(function(n){
+      ocupados[String(n)] = {id:id, vendedor:datos[f][head.indexOf('Vendedor')], nombre:datos[f][head.indexOf('Nombre')]};
     });
   }
 
@@ -262,20 +270,49 @@ function anularGanador_(g){
 // ============================================================
 // LECTURA
 // ============================================================
+
+/**
+ * Saca la lista de números de la celda "Numeros".
+ * Usa el texto que se VE en la celda, no el valor interno: si Sheets
+ * malinterpretó "1, 3, 225" y lo guardó como número o como fecha, el valor
+ * interno ya no sirve, y devolver [] a medias sería peor que avisar.
+ */
+function numsDeCelda_(display, raw){
+  // Si Sheets lo convirtió en fecha o número, no se puede reconstruir: mejor vacío
+  if (raw instanceof Date) return [];
+  if (typeof raw === 'number') return [];
+
+  var txt = String(display == null || display === '' ? (raw || '') : display);
+  var partes = txt.match(/\d+/g) || [];
+  var vistos = {}, out = [];
+  partes.forEach(function(p){
+    var n = parseInt(p, 10);            // "0225" -> 225
+    if (!(n > 0) || vistos[n]) return;
+    vistos[n] = true;
+    out.push(n);
+  });
+  return out;
+}
+
 function leerEstado_(){
   var ss = SpreadsheetApp.getActive();
 
   // --- ventas ---
   var sh = ss.getSheetByName(SH_VENTAS);
   var d = sh.getDataRange().getValues();
+  var dv = sh.getDataRange().getDisplayValues();
   var h = d[0], ops = [];
   for (var f = 1; f < d.length; f++){
     if (String(d[f][h.indexOf('Anulado')]).toUpperCase() === 'SI') continue;
     if (!d[f][h.indexOf('ID')]) continue;
     var fecha = d[f][h.indexOf('Fecha')];
+    var iN = h.indexOf('Numeros');
+    var nums = numsDeCelda_(dv[f][iN], d[f][iN]);
     ops.push({
       id: String(d[f][h.indexOf('ID')]),
-      nums: String(d[f][h.indexOf('Numeros')]).split(',').map(function(n){ return Number(String(n).trim()); }).filter(function(n){ return n > 0; }),
+      nums: nums,
+      fila: f + 1,
+      crudo: String(dv[f][iN] || ''),   // para poder mostrar el problema si nums quedó vacío
       nombre: String(d[f][h.indexOf('Nombre')]),
       tel: String(d[f][h.indexOf('Telefono')]),
       pago: String(d[f][h.indexOf('Pago')]),
@@ -355,8 +392,49 @@ function json_(o){
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Rifa')
     .addItem('Crear / reparar hojas', 'crearHojas')
+    .addItem('Revisar columna Números', 'repararNumeros')
     .addItem('Ver resumen', 'mostrarResumen')
     .addToUi();
+}
+
+/**
+ * Pone la columna Numeros en formato texto y reescribe cada celda con lo que
+ * se ve, para que Sheets no la vuelva a interpretar. Avisa cuáles no pudo
+ * recuperar (las que quedaron guardadas como fecha o como número).
+ */
+function repararNumeros(){
+  var sh = SpreadsheetApp.getActive().getSheetByName(SH_VENTAS);
+  var d  = sh.getDataRange().getValues();
+  var dv = sh.getDataRange().getDisplayValues();
+  var iNum = d[0].indexOf('Numeros');
+  var iID  = d[0].indexOf('ID');
+
+  sh.getRange(1, iNum + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+
+  var rotas = [], arregladas = 0;
+  for (var f = 1; f < d.length; f++){
+    if (!d[f][iID]) continue;
+    var nums = numsDeCelda_(dv[f][iNum], d[f][iNum]);
+    if (!nums.length){
+      rotas.push('Fila ' + (f + 1) + '  (' + d[f][iID] + ')  →  se ve: "' + dv[f][iNum] + '"');
+      continue;
+    }
+    var texto = nums.join(', ');
+    if (texto !== String(dv[f][iNum]).trim()){
+      sh.getRange(f + 1, iNum + 1).setValue(texto);
+      arregladas++;
+    }
+  }
+
+  var msg = 'Columna Números puesta en formato texto.\n\n' +
+            'Filas normalizadas: ' + arregladas + '\n';
+  if (rotas.length){
+    msg += '\n⚠ Estas filas no se pudieron recuperar. Escribí a mano los números ' +
+           'separados por coma y volvé a correr esto:\n\n' + rotas.join('\n');
+  } else {
+    msg += '\nNo hay filas con problemas.';
+  }
+  SpreadsheetApp.getUi().alert(msg);
 }
 
 function mostrarResumen(){
