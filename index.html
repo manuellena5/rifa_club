@@ -289,9 +289,13 @@ input.bad{border-color:var(--bad)}
     <div id="mNums" style="margin-top:10px"></div>
     <label>Nombre y apellido</label>
     <input id="fNom" autocomplete="name">
-    <label>WhatsApp del comprador</label>
-    <input id="fTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="3406 123456">
-    <div class="hint" id="telHint">Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.</div>
+    <label>WhatsApp del comprador <span class="mut">(opcional)</span></label>
+    <div style="display:flex;gap:8px">
+      <input id="fArea" type="tel" inputmode="numeric" style="width:88px;text-align:center" maxlength="4">
+      <input id="fTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="número" style="flex:1">
+    </div>
+    <div style="display:flex;gap:8px"><div style="width:88px;text-align:center;font-size:11px;color:var(--muted);margin-top:3px">cód. área</div></div>
+    <div class="hint" id="telHint">Como te lo dicten: con 0, con 15 o completo, lo acomoda solo.</div>
     <label>Forma de pago</label>
     <div class="pagos" id="fPago">
       <div class="pg sel" data-p="Efectivo">Efectivo</div>
@@ -391,6 +395,31 @@ function calc(c){
 // celular, el +54 y el 9. Esto los saca sin que el vendedor piense.
 
 // Áreas de 3 dígitos. Las de 2 son solo el 11. El resto, 4.
+// Código de área del pueblo. Viene puesto para no escribirlo en cada venta.
+const AREA_DEF='3406';
+
+// Lo que hay cargado entre los dos campos. Si el número está vacío, el
+// teléfono está vacío: NO se guarda el código de área solo, porque un
+// "3406" suelto no sirve para nada y ensucia la planilla.
+function telCampos(){
+  const n=($('fTel')?$('fTel').value:'').replace(/\D/g,'');
+  if(!n) return '';
+  return (($('fArea')?$('fArea').value:'')||'')+' '+n;
+}
+
+// Parte un teléfono guardado en sus dos campos
+function telAcampos(guardado){
+  const d=String(guardado||'').replace(/\D/g,'');
+  if(!d){ $('fArea').value=AREA_DEF; $('fTel').value=''; return; }
+  const t=telNorm(d);
+  if(t.ok){
+    const s=t.e164.slice(3), la=largoArea(s);
+    $('fArea').value=s.slice(0,la); $('fTel').value=s.slice(la);
+  }else{
+    $('fArea').value=AREA_DEF; $('fTel').value=d;
+  }
+}
+
 const AREA3=new Set(['220','221','223','230','236','237','249','260','261','263','264','266','280','291','297','299','341','342','343','345','348','351','353','358','362','364','370','376','379','380','381','383','385','387','388']);
 const largoArea=d=> d.slice(0,2)==='11' ? 2 : (AREA3.has(d.slice(0,3)) ? 3 : 4);
 
@@ -801,7 +830,7 @@ function continuarVenta(){
   if(!pick.size) return alert('Elegí al menos un número.');
   editando=null;
   $('mTit').textContent='Nueva venta'; $('mSub').textContent=''; $('mAlert').innerHTML='';
-  $('fNom').value=''; $('fTel').value=''; setPago('Efectivo'); pintarTel();
+  $('fNom').value=''; telAcampos(''); setPago('Efectivo'); pintarTel();
   pintarNums([...pick]);
   const m=calc(pick.size); $('fMonto').value=m; $('lblSug').textContent='(sugerido '+plata(m)+')';
   $('btnAnular').style.display='none';
@@ -819,10 +848,10 @@ function abrirOp(id){
   $('mSub').innerHTML=(propia?'Venta tuya':'Vendida por '+esc(o.vend))+
     (prem.length? ' · <b style="color:#facc15">🏆 '+prem.map(g=>esc(g.premio)+' — Nº '+g.num).join(' · ')+'</b>' : '');
   $('mAlert').innerHTML=propia?'':'<div class="warn">Solo podés editar tus propias ventas.</div>';
-  $('fNom').value=o.nombre; $('fTel').value=o.tel||''; setPago(o.pago); pintarTel();
+  $('fNom').value=o.nombre; telAcampos(o.tel); setPago(o.pago); pintarTel();
   pintarNums([...o.nums]);
   $('fMonto').value=o.monto; $('lblSug').textContent='';
-  ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=!propia);
+  ['fNom','fArea','fTel','fMonto'].forEach(i=>$(i).disabled=!propia);
   $('fPago').style.pointerEvents=propia?'auto':'none';
   $('btnGuardar').style.display=propia?'block':'none';
   $('btnAnular').style.display=propia?'block':'none';
@@ -841,20 +870,38 @@ document.querySelectorAll('#fPago .pg').forEach(p=>p.onclick=()=>setPago(p.datas
 // no se puede cargar ninguna venta. Por eso tolera que falte el cartelito.
 function pintarTel(){
   const i=$('fTel'); if(!i) return;
-  const t=telNorm(i.value), h=$('telHint');
-  i.classList.remove('ok','bad');
-  if(!t.vacio) i.classList.add(t.ok?'ok':'bad');
+  const t=telNorm(telCampos()), h=$('telHint'), a=$('fArea');
+  i.classList.remove('ok','bad'); if(a) a.classList.remove('ok','bad');
+  if(!t.vacio){ i.classList.add(t.ok?'ok':'bad'); if(a) a.classList.add(t.ok?'ok':'bad'); }
   if(!h) return;
   h.classList.remove('ok','bad');
-  if(t.vacio)   h.textContent='Como te lo dicten: con 0, con 15 o con +54, lo acomoda solo.';
+  if(t.vacio)   h.textContent='Sin teléfono la venta se guarda igual, pero no le podés mandar el comprobante.';
   else if(t.ok){ h.classList.add('ok');  h.textContent='✓ Le va a llegar a +54 9 '+t.lindo; }
   else         { h.classList.add('bad'); h.textContent='✕ '+t.msg[0].toUpperCase()+t.msg.slice(1)+' — sin comprobante por WhatsApp'; }
 }
-if($('fTel')) $('fTel').addEventListener('input',pintarTel);
+
+// Si el vendedor pega el número completo de la agenda, el código de área
+// viene adentro: se separa solo y se mueve al campo de la izquierda.
+function acomodarPegado(){
+  const i=$('fTel'), a=$('fArea'); if(!i||!a) return;
+  const d=i.value.replace(/\D/g,'');
+  if(d.length<10) return;                       // todavía está escribiendo
+  const t=telNorm(d);
+  if(!t.ok) return;
+  const soloD=t.e164.slice(3);                  // los 10 dígitos limpios
+  const la=largoArea(soloD);
+  a.value=soloD.slice(0,la);
+  i.value=soloD.slice(la);
+}
+
+if($('fTel')){
+  $('fTel').addEventListener('input',()=>{ acomodarPegado(); pintarTel(); });
+  $('fArea').addEventListener('input',pintarTel);
+}
 
 function cerrar(){
   $('modal').classList.remove('show');
-  ['fNom','fTel','fMonto'].forEach(i=>$(i).disabled=false);
+  ['fNom','fArea','fTel','fMonto'].forEach(i=>$(i).disabled=false);
   $('fPago').style.pointerEvents='auto'; $('btnGuardar').style.display='block';
   editando=null; modoSel=false; pick.clear(); render();
 }
@@ -866,13 +913,15 @@ function guardar(){
   if(!nums.length) return alert('No hay números seleccionados.');
   if(editando && editando.vend!==S.vendedor) return cerrar();
 
-  // El teléfono no es obligatorio, pero si está mal se avisa antes de guardar
-  const crudo=$('fTel').value.trim(), t=telNorm(crudo);
+  // El teléfono no es obligatorio. Si el campo del número quedó vacío se
+  // guarda vacío, sin el código de área suelto. Si está cargado pero mal,
+  // se avisa y se puede guardar igual.
+  const crudo=telCampos(), t=telNorm(crudo);
   if(crudo && !t.ok && !confirm('El WhatsApp no cierra: '+t.msg+'.\n\n¿Guardar igual? No vas a poder mandarle el comprobante hasta corregirlo.')) return;
 
   const o={
     id: editando? editando.id : (S.vendedor.substring(0,3)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)),
-    nums, nombre:nom, tel: t.ok? t.lindo : crudo, pago:pagoSel,
+    nums, nombre:nom, tel: crudo? (t.ok? t.lindo : crudo) : '', pago:pagoSel,
     monto:+$('fMonto').value||0, vend:S.vendedor, ts:Date.now(), sync:false
   };
   S.ops=S.ops.filter(x=>x.id!==o.id); S.ops.push(o);
