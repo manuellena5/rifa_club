@@ -46,6 +46,7 @@ input:disabled{opacity:.6}
 .n.pend{border-style:dashed;border-color:var(--pend)}
 .n.pick{background:var(--acc);border-color:#e0f2fe;color:#06263a;box-shadow:0 0 0 2px #38bdf880}
 .n.gan{background:#713f12;border-color:#facc15;color:#fef9c3}
+.n.rep{background:#7f1d1d;border-color:#ef4444;color:#fecaca}
 .n:active{transform:scale(.94)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0}
 .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
@@ -119,6 +120,11 @@ input.bad{border-color:var(--bad)}
 
 <main>
   <div class="info" id="aviso"></div>
+  <div id="alertaRep" style="display:none;background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-weight:700" id="repTit"></div>
+    <div style="font-size:13px;margin:4px 0 10px" id="repSub"></div>
+    <button class="btn" style="background:#fecaca;color:#7f1d1d" onclick="irA('res')">Ver y resolver</button>
+  </div>
 
   <!-- NÚMEROS -->
   <section class="panel sel" id="p-nums">
@@ -167,6 +173,12 @@ input.bad{border-color:var(--bad)}
     <div class="card"><b>Compras por cantidad</b>
       <div class="mut" style="margin:4px 0 6px">Cuánta gente compró de a uno, de a dos, etc. <b>Nº</b> son números, no compras.</div>
       <table id="tCant"></table></div>
+
+    <div class="card" id="cardRep" style="display:none;border-color:#ef4444">
+      <b style="color:#fca5a5">Números repetidos</b>
+      <div class="mut" style="margin:6px 0 10px">El mismo número lo cargaron dos vendedores, casi siempre porque alguno estaba sin señal. Las dos ventas están guardadas: hay que anular una. <b>El criterio es que el número queda para quien lo vendió primero</b>, y el otro vendedor le ofrece otro número a su comprador.</div>
+      <div id="listaRep"></div>
+    </div>
 
     <div class="card">
       <b>Imagen para compartir</b>
@@ -338,7 +350,7 @@ const DEF={
   vendedor:'', total:300, precios:[{c:1,p:10000},{c:2,p:15000},{c:3,p:22000}], extra:7000,
   premios:['1º Premio','2º Premio','3º Premio'], nombreRifa:'Rifa del Club', abierta:true,
   ops:[], ganadores:[], vendedores:[], url:API_URL_FIJA, token:TOKEN_FIJO, ultSync:0,
-  msgWa:MSG_DEF, msgWa1:MSG_DEF1, avisados:{}, excluidos:[]
+  msgWa:MSG_DEF, msgWa1:MSG_DEF1, avisados:{}, excluidos:[], repetidos:[], sello:0
 };
 let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(K)||'{}'));
 if(API_URL_FIJA) S.url=API_URL_FIJA;
@@ -347,6 +359,7 @@ if(!S.avisados)  S.avisados={};
 if(!S.msgWa)     S.msgWa=MSG_DEF;
 if(!S.msgWa1)    S.msgWa1=MSG_DEF1;
 if(!S.excluidos) S.excluidos=[];
+if(!S.repetidos) S.repetidos=[];
 let ultimaVenta=null, rePremio=null;
 const save=()=>localStorage.setItem(K,JSON.stringify(S));
 
@@ -477,13 +490,25 @@ async function llamar(payload){
   } finally { cargando=false; barra(100); }
 }
 
+// Huella de lo que se ve en pantalla. Si el refresco automático trae
+// exactamente lo mismo, no se redibuja: ni parpadeo ni salto de scroll.
+let huellaActual='';
+function huella(){
+  return S.ops.map(o=>o.id+':'+o.nums.join('.')+':'+o.nombre+':'+o.tel+':'+o.pago+':'+o.monto+':'+(o.sync?1:0)).sort().join('|')
+    +'#'+S.ganadores.map(g=>g.premio+g.num).join(',')
+    +'#'+S.repetidos.map(r=>r.num).join(',')
+    +'#'+S.total+S.nombreRifa+S.abierta+S.vendedores.join(',');
+}
+
 function aplicarEstado(est){
   const pendientes=pend();
   S.ops=(est.ops||[]).map(o=>({...o,sync:true}));
   pendientes.forEach(p=>{ if(!S.ops.find(o=>o.id===p.id)) S.ops.push(p); });
   S.ganadores=est.ganadores||[];
   S.excluidos=est.excluidos||[];
+  S.repetidos=est.repetidos||[];
   S.vendedores=est.vendedores||[];
+  if(est.sello) S.sello=est.sello;
   if(est.config){
     S.total=est.config.total||S.total;
     if(est.config.precios&&est.config.precios.length) S.precios=est.config.precios;
@@ -495,7 +520,9 @@ function aplicarEstado(est){
     if(est.config.msgWa1) S.msgWa1=est.config.msgWa1;
   }
   S.ultSync=Date.now();
-  save(); render();
+  save();
+  const h=huella();
+  if(h!==huellaActual){ huellaActual=h; render(); }
 }
 
 async function sync(silencio){
@@ -531,6 +558,53 @@ window.addEventListener('offline',render);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden && conectado() && Date.now()-S.ultSync>60000) sync(true); });
 
 // ============================================================
+// REFRESCO AUTOMÁTICO
+// Solo cuando el vendedor dejó el celular quieto. Nunca mientras carga una
+// venta, elige números o gira el bolillero: la pantalla no se mueve sola
+// debajo de las manos de nadie.
+// ============================================================
+const IDLE=15000, CADA=60000;
+let ultInteraccion=Date.now(), ultChequeo=0, fallos=0;
+['pointerdown','keydown','touchstart','wheel','scroll'].forEach(ev=>
+  window.addEventListener(ev,()=>{ ultInteraccion=Date.now(); },{passive:true}));
+
+function puedeRefrescar(){
+  if(!conectado() || !navigator.onLine || cargando) return false;
+  if(document.hidden) return false;
+  if(document.querySelector('.modal.show')) return false;
+  if(modoSel || girando) return false;
+  const t=document.querySelector('.tab.sel');
+  if(!t || ['cfg','sort'].indexOf(t.dataset.t)>=0) return false;
+  return Date.now()-ultInteraccion >= IDLE;
+}
+
+// Consulta liviana: pregunta solo si hubo cambios. No lee la planilla,
+// no toca la barra de progreso, no molesta si falla.
+async function hayNovedades(){
+  const r=await fetch(S.url,{
+    method:'POST', redirect:'follow',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({token:S.token, action:'ping'})
+  });
+  const j=await r.json();
+  return j.ok ? (j.sello||0) : null;
+}
+
+setInterval(async()=>{
+  const espera = CADA * Math.min(Math.pow(2,fallos),8);   // si falla, va espaciando
+  if(Date.now()-ultChequeo < espera) return;
+  if(!puedeRefrescar()) return;
+  ultChequeo=Date.now();
+  try{
+    if(pend().length){ await sync(true); fallos=0; return; }
+    const sello=await hayNovedades();
+    if(sello===null) return;
+    if(sello!==S.sello) await sync(true);
+    fallos=0;
+  }catch(e){ fallos=Math.min(fallos+1,3); }
+}, 5000);
+
+// ============================================================
 // RENDER
 // ============================================================
 let filtro='todos', pick=new Set(), editando=null, modoSel=false, pagoSel='Efectivo';
@@ -557,7 +631,33 @@ function render(){
     '. Esos números figuran como libres y se los puede vender otro. En la planilla: menú <b>Rifa → Revisar columna Números</b>.';
   $('aviso').innerHTML=av; $('aviso').style.display=av?'block':'none';
 
+  // números repetidos: aviso fijo en todas las pestañas + detalle en Resumen
+  const reps=S.repetidos||[];
+  $('alertaRep').style.display=reps.length?'block':'none';
+  if(reps.length){
+    $('repTit').textContent = reps.length===1
+      ? 'El número '+reps[0].num+' está vendido dos veces'
+      : reps.length+' números están vendidos dos veces';
+    $('repSub').textContent = 'Nº '+reps.map(r=>r.num).join(', ')+'. Las dos ventas quedaron guardadas: hay que anular una.';
+  }
+  $('cardRep').style.display=reps.length?'block':'none';
+  $('listaRep').innerHTML=reps.map(r=>{
+    const ventas=r.ids.map(id=>S.ops.find(o=>o.id===id)).filter(Boolean)
+                      .sort((a,b)=>(a.ts||0)-(b.ts||0));
+    return '<div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">'+
+      '<div style="font-size:17px;font-weight:700;margin-bottom:6px">Número '+r.num+'</div>'+
+      ventas.map((o,i)=>`
+        <div class="card" style="margin:0 0 6px;background:var(--card2)">
+          <div class="mut">${i===0?'Cargada primero':'Cargada después'} · ${new Date(o.ts).toLocaleString('es-AR')}</div>
+          <div style="margin:3px 0"><b>${esc(o.nombre)}</b> <span class="mut">${esc(o.tel||'sin teléfono')}</span></div>
+          <div class="mut">Vendedor: ${esc(o.vend)} · ${o.pago} · ${plata(o.monto)} · Nº ${[...o.nums].sort((a,b)=>a-b).join(', ')}</div>
+          <button class="btn danger sm" style="margin-top:8px" onclick="anularId('${o.id}')">Anular esta venta</button>
+        </div>`).join('')+
+      '</div>';
+  }).join('');
+
   // grilla
+  const numsRep=new Set(reps.map(r=>r.num));
   const bus=($('buscar').value||'').toLowerCase().trim();
   let h='';
   for(let i=1;i<=S.total;i++){
@@ -572,6 +672,7 @@ function render(){
     if(o&&!o.sync) c+=' pend';
     const gano=ganoYa(i);
     if(gano) c+=' gan';
+    if(numsRep.has(i)) c+=' rep';
     if(pick.has(i)) c+=' pick';
     h+=`<div class="${c}" onclick="tocar(${i})">${gano?'<i class="copa">🏆</i>':''}${i}</div>`;
   }
@@ -802,6 +903,26 @@ async function anular(){
   if(!navigator.onLine) return alert('Para anular una venta ya subida hace falta internet.');
   try{ await llamar({action:'anular', id}); cerrar(); alert('Venta anulada.'); }
   catch(e){ alert('No se pudo anular: '+e.message); }
+}
+
+// Anular desde la lista de repetidos. Cualquier vendedor puede hacerlo: si
+// solo pudiera el dueño y esa persona apagó el celular, el conflicto queda
+// trabado. La confirmación dice exactamente qué se está anulando y de quién.
+async function anularId(id){
+  const o=S.ops.find(x=>x.id===id); if(!o) return;
+  const msg='Vas a anular la venta de '+o.vend+':\n\n'+
+            o.nombre+' — Nº '+[...o.nums].sort((a,b)=>a-b).join(', ')+' — '+o.pago+' '+plata(o.monto)+
+            '\n\nEsta venta deja de contar y sus números quedan libres. ¿Seguro?';
+  if(!confirm(msg)) return;
+  if(!o.sync){ S.ops=S.ops.filter(x=>x.id!==id); save(); render(); return; }
+  if(!navigator.onLine) return alert('Para anular una venta ya subida hace falta internet.');
+  try{ await llamar({action:'anular', id}); alert('Venta anulada.'); }
+  catch(e){ alert('No se pudo anular: '+e.message); }
+}
+
+function irA(tab){
+  const t=document.querySelector('.tab[data-t="'+tab+'"]');
+  if(t) t.click();
 }
 
 // ============================================================

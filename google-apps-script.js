@@ -131,22 +131,36 @@ function doGet(e){
   }
 }
 
+// Sello de la última escritura. Vive en las propiedades del script, no en la
+// planilla: leerlo son milisegundos. Es lo que consulta el refresco automático
+// para no bajar toda la rifa cada minuto sin necesidad.
+function marcar_(){
+  PropertiesService.getScriptProperties().setProperty('lastWrite', String(Date.now()));
+}
+function sello_(){
+  return Number(PropertiesService.getScriptProperties().getProperty('lastWrite')) || 0;
+}
+
 function doPost(e){
   var lock = LockService.getScriptLock();
   try{
     var body = JSON.parse(e.postData.contents);
     if (!tokenOk_(body.token)) return json_({ok:false, error:'Clave incorrecta'});
 
+    // El ping no lee la planilla ni toma el candado: contesta y se va.
+    if (body.action === 'ping') return json_({ok:true, sello: sello_()});
+
     lock.waitLock(25000);
 
-    var r = {ok:true};
+    var r = {ok:true}, escribio = true;
     if (body.action === 'push')        r = pushVentas_(body.ops || []);
     else if (body.action === 'anular') r = anular_(body.id);
     else if (body.action === 'ganador')r = guardarGanador_(body.ganador);
     else if (body.action === 'anularGanador') r = anularGanador_(body.ganador);
-    else if (body.action === 'estado') r = {ok:true};
+    else if (body.action === 'estado') { r = {ok:true}; escribio = false; }
     else return json_({ok:false, error:'Acción desconocida: ' + body.action});
 
+    if (escribio) marcar_();
     r.estado = leerEstado_();
     return json_(r);
   }catch(err){
@@ -357,6 +371,23 @@ function leerEstado_(){
     });
   }
 
+  // --- números repetidos ---
+  // Dos vendedores sin señal pueden cargar el mismo número y los dos tienen
+  // razón. No se pisa ninguna venta: se listan las dos para que las resuelvan.
+  // Se calcula acá porque es el único lugar que ve a todos los vendedores.
+  var porNum = {};
+  ops.forEach(function(o){
+    o.nums.forEach(function(n){
+      if (!porNum[n]) porNum[n] = [];
+      porNum[n].push(o.id);
+    });
+  });
+  var repetidos = [];
+  Object.keys(porNum).forEach(function(n){
+    if (porNum[n].length > 1) repetidos.push({num: Number(n), ids: porNum[n]});
+  });
+  repetidos.sort(function(a,b){ return a.num - b.num; });
+
   // --- config ---
   var cfg = cfgObj_();
   var precios = String(cfg.precios || '1=10000').split(';').map(function(x){
@@ -390,6 +421,8 @@ function leerEstado_(){
     vendedores: vendedores,
     ganadores: ganadores,
     excluidos: excluidos,
+    repetidos: repetidos,
+    sello: sello_(),
     config: {
       nombreRifa: String(cfg.nombreRifa || 'Rifa del Club'),
       total: Number(cfg.totalNumeros) || 300,
@@ -428,8 +461,34 @@ function onOpen(){
   SpreadsheetApp.getUi().createMenu('Rifa')
     .addItem('Crear / reparar hojas', 'crearHojas')
     .addItem('Revisar columna Números', 'repararNumeros')
+    .addItem('Marcar números repetidos', 'pintarRepetidos')
     .addItem('Ver resumen', 'mostrarResumen')
     .addToUi();
+}
+
+/** Pinta en rojo las filas que comparten algún número con otra venta vigente. */
+function pintarRepetidos(){
+  var sh = SpreadsheetApp.getActive().getSheetByName(SH_VENTAS);
+  var e = leerEstado_();
+  var ancho = sh.getLastColumn();
+
+  sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), ancho).setBackground(null);
+
+  var enConflicto = {};
+  e.repetidos.forEach(function(r){ r.ids.forEach(function(id){ enConflicto[id] = true; }); });
+
+  var pintadas = 0;
+  e.ops.forEach(function(o){
+    if (enConflicto[o.id]){ sh.getRange(o.fila, 1, 1, ancho).setBackground('#fce8e6'); pintadas++; }
+  });
+
+  SpreadsheetApp.getUi().alert(
+    e.repetidos.length
+      ? 'Números repetidos: ' + e.repetidos.map(function(r){ return r.num; }).join(', ') +
+        '\n\nQuedaron ' + pintadas + ' filas marcadas en rojo.\n\n' +
+        'Para resolverlo, anulá una de las dos ventas desde la app (pestaña Resumen).'
+      : 'No hay números repetidos.'
+  );
 }
 
 /**
