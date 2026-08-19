@@ -36,8 +36,8 @@ input,select,button,textarea{font:inherit;color:var(--txt)}
 input,select,textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--acc)}
 input:disabled{opacity:.6}
-.f{padding:7px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;cursor:pointer;white-space:nowrap}
-.f.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:600}
+.f,.fm{padding:7px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;cursor:pointer;white-space:nowrap}
+.f.sel,.fm.sel{background:var(--acc);color:#06263a;border-color:var(--acc);font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
 .n{position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
 .copa{position:absolute;top:1px;left:2px;font-size:12px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px #000c)}
@@ -47,6 +47,12 @@ input:disabled{opacity:.6}
 .n.pick{background:var(--acc);border-color:#e0f2fe;color:#06263a;box-shadow:0 0 0 2px #38bdf880}
 .n.gan{background:#713f12;border-color:#facc15;color:#fef9c3}
 .n.rep{background:#7f1d1d;border-color:#ef4444;color:#fecaca}
+details.adv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+details.adv summary{cursor:pointer;font-weight:700;list-style:none;color:var(--muted)}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::after{content:'▾';float:right}
+details.adv[open] summary::after{content:'▴'}
+details.adv .sub{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
 .n:active{transform:scale(.94)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0}
 .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
@@ -155,6 +161,10 @@ input.bad{border-color:var(--bad)}
         <div class="mut" id="mDebe"></div></div>
       </div>
     </div>
+    <div class="bar">
+      <div class="fm sel" data-fm="todos">Todos</div>
+      <div class="fm" data-fm="debe">No cobrados</div>
+    </div>
     <div id="listaMias"></div>
     <button class="btn sec" onclick="compartir()" style="margin-top:8px">Pasar mi lista por WhatsApp</button>
   </section>
@@ -221,16 +231,6 @@ input.bad{border-color:var(--bad)}
       <div class="mut" style="margin-top:6px">Se elige una sola vez y queda guardado en este celular.</div>
     </div>
 
-    <div class="card">
-      <b>Conexión con la planilla</b>
-      <label>Dirección de la app (URL /exec)</label>
-      <input id="fUrl" placeholder="https://script.google.com/macros/s/.../exec">
-      <label>Clave</label>
-      <input id="fToken" placeholder="la que pusiste en la hoja Config">
-      <button class="btn" onclick="conectar()" style="margin-top:12px">Guardar y conectar</button>
-      <div id="estadoConn" class="mut" style="margin-top:8px"></div>
-    </div>
-
     <div class="card" id="cardPrecios">
       <b>Lista de precios</b>
       <div class="mut" style="margin:6px 0 10px" id="notaPrecios"></div>
@@ -250,15 +250,29 @@ input.bad{border-color:var(--bad)}
       <textarea id="txtPremios" rows="4" onchange="setPremios(this.value)"></textarea>
     </div>
 
-    <div class="card">
-      <b>Datos</b>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="btn sec sm" onclick="exportCSV()">Descargar CSV</button>
-        <button class="btn sec sm" onclick="actualizar()">Actualizar desde la planilla</button>
-        <button class="btn danger sm" onclick="reset()">Borrar este celular</button>
+    <details class="adv" id="avanzado">
+      <summary>Opciones avanzadas</summary>
+
+      <div class="sub">
+        <b>Conexión con la planilla</b>
+        <label>Dirección de la app (URL /exec)</label>
+        <input id="fUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <label>Clave</label>
+        <input id="fToken" placeholder="la que pusiste en la hoja Config">
+        <button class="btn" onclick="conectar()" style="margin-top:12px">Guardar y conectar</button>
+        <div id="estadoConn" class="mut" style="margin-top:8px"></div>
       </div>
-      <div class="mut" style="margin-top:8px">"Borrar este celular" no toca la planilla: vuelve a bajar todo de cero.</div>
-    </div>
+
+      <div class="sub">
+        <b>Datos</b>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn sec sm" onclick="exportCSV()">Descargar CSV</button>
+          <button class="btn sec sm" onclick="actualizar()">Actualizar desde la planilla</button>
+          <button class="btn danger sm" onclick="reset()">Borrar este celular</button>
+        </div>
+        <div class="mut" style="margin-top:8px">"Borrar este celular" no toca la planilla: vuelve a bajar todo de cero.</div>
+      </div>
+    </details>
 
     <div class="mut" style="text-align:center;padding:10px">versión <span id="ver">—</span></div>
   </section>
@@ -643,7 +657,7 @@ setInterval(async()=>{
 // ============================================================
 // RENDER
 // ============================================================
-let filtro='todos', pick=new Set(), editando=null, modoSel=false, pagoSel='Efectivo';
+let filtro='todos', filtroMias='todos', pick=new Set(), editando=null, modoSel=false, pagoSel='Efectivo';
 
 function render(){
   $('hTitulo').textContent=S.nombreRifa;
@@ -721,12 +735,15 @@ function render(){
   $('sbNums').textContent=arr.length? arr.length+(arr.length===1?' número: ':' números: ')+arr.join(', ') : 'Ningún número elegido';
   $('sbMonto').textContent=plata(calc(arr.length));
 
-  // mis ventas — la última cargada primero, que es la que uno viene a mirar
-  const mias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(b.ts||0)-(a.ts||0));
-  $('mCant').textContent=mias.reduce((a,o)=>a+o.nums.length,0);
-  $('mPlata').textContent=plata(mias.reduce((a,o)=>a+cobrado(o),0));
-  const dm=mias.reduce((a,o)=>a+adeudado(o),0);
+  // mis ventas — la última cargada primero, que es la que uno viene a mirar.
+  // Los totales de arriba son siempre los tuyos completos: son la rendición,
+  // no cambian con el filtro. El filtro solo acota la lista de abajo.
+  const todasMias=S.ops.filter(o=>o.vend===S.vendedor).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  $('mCant').textContent=todasMias.reduce((a,o)=>a+o.nums.length,0);
+  $('mPlata').textContent=plata(todasMias.reduce((a,o)=>a+cobrado(o),0));
+  const dm=todasMias.reduce((a,o)=>a+adeudado(o),0);
   $('mDebe').textContent=dm?'+ '+plata(dm)+' a cobrar':'';
+  const mias = filtroMias==='debe' ? todasMias.filter(o=>o.pago==='Debe') : todasMias;
   $('listaMias').innerHTML=mias.length? mias.map(o=>{
     const t=telNorm(o.tel), av=avisado(o.id);
     return `
@@ -743,7 +760,9 @@ function render(){
       </div>
       <button class="btn ${av?'sec':'wa'} sm" style="margin-top:10px" onclick="enviarWa('${o.id}')">${ICONO_WA}${av?'Reenviar comprobante':'Enviar comprobante'}</button>
     </div>`;
-  }).join('') : '<div class="card mut">Todavía no cargaste ninguna venta.</div>';
+  }).join('') : `<div class="card mut">${filtroMias==='debe'
+    ? (todasMias.length? 'No te queda nada por cobrar.' : 'Todavía no cargaste ninguna venta.')
+    : 'Todavía no cargaste ninguna venta.'}</div>`;
 
   // resumen
   const v=vendidos();
@@ -1233,6 +1252,10 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
 document.querySelectorAll('.f').forEach(f=>f.onclick=()=>{
   document.querySelectorAll('.f').forEach(x=>x.classList.remove('sel')); f.classList.add('sel');
   filtro=f.dataset.f; render();
+});
+document.querySelectorAll('.fm').forEach(f=>f.onclick=()=>{
+  document.querySelectorAll('.fm').forEach(x=>x.classList.remove('sel')); f.classList.add('sel');
+  filtroMias=f.dataset.fm; render();
 });
 $('buscar').oninput=render;
 
